@@ -30,7 +30,7 @@ def process(data):
                       encoding="utf-8") as f:
                 f.write(references[i])
 
-        r = pyrouge.Rouge155()
+        r = pyrouge.Rouge155("./pyrogue/tools/ROUGE-1.5.5/")
         r.model_dir = tmp_dir + "/reference/"
         r.system_dir = tmp_dir + "/candidate/"
         r.model_filename_pattern = 'ref.#ID#.txt'
@@ -64,8 +64,10 @@ def test_rouge(cand, ref, num_processes):
     assert len(candidates) == len(references), "!!!!!!! Note: The number of candidates is " \
                                                "not equal to the number of references!!!!!!!"
 
-    candidates_chunks = list(chunks(candidates, int(len(candidates)/num_processes)))
-    references_chunks = list(chunks(references, int(len(references)/num_processes)))
+    candidates_chunks = list(
+        chunks(candidates, int(len(candidates)/num_processes)))
+    references_chunks = list(
+        chunks(references, int(len(references)/num_processes)))
 
     n_pool = len(candidates_chunks)
     arg_lst = []
