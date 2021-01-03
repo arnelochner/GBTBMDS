@@ -26,17 +26,17 @@ python -u ./src/run.py \
                --do_test true \
                --do_dec true \
                --verbose true \
-               --batch_size 30000 \
+               --batch_size 4096 \
                --in_tokens true \
                --stream_job ${STREAM_JOB:-""} \
                --init_pretraining_params ${MODEL_PATH:-""} \
                --train_set ${TASK_DATA_PATH}/train \
                --dev_set ${TASK_DATA_PATH}/valid \
-               --test_set ${TASK_DATA_PATH}/test \
+               --test_set ${TASK_DATA_PATH}/local_test \
                --vocab_path ${VOCAB_PATH} \
                --config_path model_config/graphsum_config.json \
                --checkpoints ./models/graphsum_multinews \
-               --init_checkpoint ./models/graphsum_multinews/step_42976 \
+               --init_checkpoint ./models/graphsum_multinews/step_8596 \
                --decode_path ./results/graphsum_multinews \
                --lr_scheduler ${lr_scheduler} \
                --save_steps 10000 \
