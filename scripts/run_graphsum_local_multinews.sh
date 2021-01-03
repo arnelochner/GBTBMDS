@@ -57,9 +57,9 @@ python3 -u ./src/launch.py ${distributed_args} \
                --in_tokens true \
                --stream_job ${STREAM_JOB:-""} \
                --init_pretraining_params ${MODEL_PATH:-""} \
-               --train_set ${TASK_DATA_PATH}/local_train \
-               --dev_set ${TASK_DATA_PATH}/local_valid \
-               --test_set ${TASK_DATA_PATH}/local_test \
+               --train_set ${TASK_DATA_PATH}/train \
+               --dev_set ${TASK_DATA_PATH}/valid \
+               --test_set ${TASK_DATA_PATH}/test \
                --vocab_path ${VOCAB_PATH} \
                --config_path model_config/graphsum_config.json \
                --checkpoints ./models/graphsum_multinews \
@@ -78,7 +78,7 @@ python3 -u ./src/launch.py ${distributed_args} \
                --graph_type "similarity" \
                --len_penalty 0.6 \
                --block_trigram False \
-               --report_rouge False \
+               --report_rouge true \
                --learning_rate ${LR_RATE} \
                --skip_steps 100 \
                --grad_norm 2.0 \
