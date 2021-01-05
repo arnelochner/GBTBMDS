@@ -848,6 +848,8 @@ class GraphSumModel(object):
             weight_tensor = layers.create_tensor(dtype="float64")
             layers.assign(layers.array_read(
                 attention_weights_array_token, layers.increment(number_steps, value=-1, in_place=False)), weight_tensor)
+
+            layers.Print(weight_tensor, message="Initial weight_tensor")
             with while_oper.block():
 
                 index = layers.elementwise_sub(number_steps, step_idx)
