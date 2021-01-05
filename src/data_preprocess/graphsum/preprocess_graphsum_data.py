@@ -44,18 +44,25 @@ def str2bool(v):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("-mode", default='', type=str, help='format_to_json or format_to_paddle')
+    parser.add_argument("-mode", default='', type=str,
+                        help='format_to_json or format_to_paddle')
     parser.add_argument("-json_path", default='json_data/')
     parser.add_argument("-data_path", default='MultiNews_data_tfidf_paddle')
-    parser.add_argument("-vocab_path", default='E:/graphsum/data/spm9998_3.model')
+    parser.add_argument(
+        "-vocab_path", default='E:/graphsum/data/spm9998_3.model')
 
-    parser.add_argument("-train_src", default='E:/graphsum/data/mutli-news-processed/train.txt.src')
-    parser.add_argument("-train_tgt", default='E:/graphsum/data/mutli-news-processed/train.txt.tgt')
-    parser.add_argument("-valid_src", default='E:/graphsum/data/mutli-news-processed/val.txt.src')
-    parser.add_argument("-valid_tgt", default='E:/graphsum/data/mutli-news-processed/val.txt.tgt')
-    parser.add_argument("-test_src", default='E:/graphsum/data/mutli-news-processed/test.txt.src')
-    parser.add_argument("-test_tgt", default='E:/graphsum/data/mutli-news-processed/test.txt.tgt')
-    
+    parser.add_argument(
+        "-train_src", default='E:/graphsum/data/mutli-news-processed/train.txt.src')
+    parser.add_argument(
+        "-train_tgt", default='E:/graphsum/data/mutli-news-processed/train.txt.tgt')
+    parser.add_argument(
+        "-valid_src", default='E:/graphsum/data/mutli-news-processed/val.txt.src')
+    parser.add_argument(
+        "-valid_tgt", default='E:/graphsum/data/mutli-news-processed/val.txt.tgt')
+    parser.add_argument(
+        "-test_src", default='E:/graphsum/data/mutli-news-processed/test.txt.src')
+    parser.add_argument(
+        "-test_tgt", default='E:/graphsum/data/mutli-news-processed/test.txt.tgt')
 
     parser.add_argument("-num_examples", default=1, type=int)
     parser.add_argument("-shard_size", default=4000, type=int)
@@ -65,13 +72,19 @@ if __name__ == '__main__':
     parser.add_argument('-max_src_ntokens', default=100, type=int)
     parser.add_argument('-sim_threshold', default=0.05, type=float)
 
-    parser.add_argument("-lower", type=str2bool, nargs='?', const=True, default=True)
-    parser.add_argument('-dataset', default='', help='train, valid or test, default will process all datasets')
+    parser.add_argument('-sentence_level', default=False, type=str2bool)
+
+    parser.add_argument("-lower", type=str2bool, nargs='?',
+                        const=True, default=True)
+    parser.add_argument('-dataset', default='',
+                        help='train, valid or test, default will process all datasets')
     parser.add_argument('-n_cpus', default=1, type=int)
 
-    parser.add_argument("-sim_function", default='tf-idf', type=str, help='tf-idf or lsi or lda')
+    parser.add_argument("-sim_function", default='tf-idf',
+                        type=str, help='tf-idf or lsi or lda')
     parser.add_argument('-num_topics', default=20, type=int)
-    parser.add_argument("-find_opt_num", type=str2bool, nargs='?', const=True, default=False)
+    parser.add_argument("-find_opt_num", type=str2bool,
+                        nargs='?', const=True, default=False)
 
     args = parser.parse_args()
 
@@ -83,5 +96,4 @@ if __name__ == '__main__':
 
     do_format_to_json(args)
     do_format_to_paddle(args)
-
 

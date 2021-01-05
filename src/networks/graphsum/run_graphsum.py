@@ -47,6 +47,7 @@ def get_random_string(length):
     result_str = ''.join(random.choice(letters) for i in range(length))
     return result_str
 
+
 def print_model_params(prog):
     with open('model_params.names', 'w') as fout:
         for _idx, param in enumerate(prog.global_block().iter_parameters()):
@@ -535,6 +536,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
             graph_vars["finished_ids"].name,
             graph_vars["finished_scores"].name,
             graph_vars["data_ids"].name,
+            graph_vars["weights"].name
         ]
 
     if do_dec:
@@ -572,8 +574,17 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 acc += total_acc
                 steps += 1
             else:
-                seq_ids, seq_scores, data_ids = outputs
-                # print("Test")
+                seq_ids, seq_scores, data_ids, weights = outputs
+                #seq_ids, seq_scores, data_ids = outputs
+
+                print(weights.shape())
+                a_weights = np.array(weights)
+                # print(type(attention_weights_array))
+                # print(a_weights.shape)
+                # print(a_weights)
+
+                np.save("pretrained_attention_weights", a_weights)
+
                 # print(np.array(seq_ids).shape)
                 # print(np.array(seq_scores).shape)
                 # print(np.array(data_ids).shape)
