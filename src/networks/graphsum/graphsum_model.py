@@ -22,6 +22,7 @@ import json
 import six
 from collections import namedtuple
 import paddle.fluid as fluid
+import numpy as np
 import paddle.fluid.layers as layers
 from models.encoder import transformer_encoder, graph_encoder
 from models.decoder import graph_decoder
@@ -306,7 +307,7 @@ class GraphSumModel(object):
 
         return enc_words_out, enc_sents_out
 
-    def decode(self, dec_input, enc_words_output, enc_sents_output, caches=None, gather_idx=None):
+    def decode(self, dec_input, enc_words_output, enc_sents_output, attention_weights_array=None, caches=None, gather_idx=None):
         """Decoding to generate output text"""
 
         trg_word, trg_pos, trg_slf_attn_bias, trg_src_words_attn_bias, \
@@ -350,6 +351,7 @@ class GraphSumModel(object):
             param_initializer=self._param_initializer,
             caches=caches,
             gather_idx=gather_idx,
+            attention_weights_array=attention_weights_array,
             name='graph_decoder')
 
         # Reshape to 2D tensor to use GEMM instead of BatchedGEMM
@@ -564,6 +566,7 @@ class GraphSumModel(object):
 
             max_len = layers.fill_constant(
                 shape=[1], dtype=start_tokens.dtype, value=self.max_out_len, force_cpu=True)
+
             min_len = layers.fill_constant(
                 shape=[1], dtype=start_tokens.dtype, value=self.min_out_len)
             neg_inf = layers.fill_constant(
@@ -572,12 +575,25 @@ class GraphSumModel(object):
                 shape=[1], dtype=start_tokens.dtype, value=0, force_cpu=True)
             step_next_idx = layers.fill_constant(
                 shape=[1], dtype=start_tokens.dtype, value=1, force_cpu=True)
+
             # default force_cpu=True
             cond = layers.less_than(x=step_idx, y=max_len)
             while_op = layers.While(cond)
             # array states will be stored for each step.
             ids = layers.array_write(layers.reshape(
                 start_tokens, (-1, 1)), step_idx)
+
+            # layers.Print(start_tokens, summarize=5,
+            #             first_n=2, message="start_tokens")
+
+            # attention_weights_array = layers.fill_constant_batch_size_like(
+            #    input=start_tokens,
+            #    shape=[-1,self._dec_n_layer, self._n_head, self.max_para_num],
+            #    value=0,
+            #    dtype="float64"
+            #    )
+
+            attention_weights_array = layers.create_array(dtype="float64")
             scores = layers.array_write(init_scores, step_idx)
             # cell states will be overwrited at each step.
             # caches contains states of history steps in decoder self-attention
@@ -613,6 +629,9 @@ class GraphSumModel(object):
             trigram_blocking = TrigramBlocking(start_tokens, self.tokenizer,
                                                use_fp16=self._use_fp16, beam_size=self.beam_size)
 
+            attention_weights_array_token = layers.create_array(
+                dtype="float64")
+
             with while_op.block():
                 pre_ids = layers.array_read(array=ids, i=step_idx)
                 pre_ids = layers.reshape(pre_ids, (-1, 1, 1), inplace=True)
@@ -636,12 +655,15 @@ class GraphSumModel(object):
                     y=step_idx,
                     axis=0)
 
+                # layers.Print(pre_ids, summarize=5,
+                #             first_n=3, message="Pre_ids")
                 logits = self.decode(dec_input=(pre_ids, pre_pos, None, pre_src_words_attn_bias,
                                                 pre_src_sents_attn_bias, pre_graph_attn_bias),
                                      enc_words_output=enc_words_output,
                                      enc_sents_output=enc_sents_output,
                                      caches=caches,
-                                     gather_idx=parent_idx)
+                                     gather_idx=parent_idx,
+                                     attention_weights_array=attention_weights_array)
 
                 # prevent generating end token if length less than min_out_len
                 eos_index = layers.fill_constant(shape=[layers.shape(logits)[0]],
@@ -679,8 +701,8 @@ class GraphSumModel(object):
                                             trigram_blocking.id2is_full_token],
                                          out=trigram_blocking.delta_score_out,
                                          backward_func=None)
-                    layers.Print(trigram_blocking.delta_score_out, summarize=5, first_n=2,
-                                 message="trigram_blocking.delta_score_out")
+                    # layers.Print(trigram_blocking.delta_score_out, summarize=5, first_n=2,
+                    #             message="trigram_blocking.delta_score_out")
                     pre_scores_wo_len_penalty = fluid.layers.elementwise_add(x=trigram_blocking.delta_score_out,
                                                                              y=pre_scores_wo_len_penalty,
                                                                              axis=0)
@@ -706,7 +728,99 @@ class GraphSumModel(object):
                     end_id=self.eos_idx,
                     return_parent_idx=True)
 
+                concat_list = []
+
+                first_iter = layers.expand(layers.unsqueeze(
+                    layers.fill_constant(shape=[1], value=0, dtype="int64"), axes=[0]), expand_times=[layers.shape(curr_scores)[0], 1])
+
+                a = layers.expand(layers.unsqueeze(
+                    step_idx, axes=[0]), expand_times=[layers.shape(curr_scores)[0], 1])
+                # layers.Print(a, summarize=4,
+                #             first_n=2, message="a for cond")
+                # layers.Print(first_iter, summarize=4,
+                #             first_n=2, message="first_iter for cond")
+                if_cond = layers.equal(a, first_iter)
+                ie = layers.IfElse(if_cond)
+                test_tensor = layers.create_tensor(dtype="float64")
+                concated_tensor = layers.create_tensor(dtype="float64")
+
+                a = layers.array_read(
+                    attention_weights_array, layers.fill_constant(shape=[1], value=0, dtype="int64"))
+                a = layers.reshape(
+                    a, shape=[-1, 1, 1, 1, self._n_head, self.max_para_num])
+
+                with ie.true_block():
+                    reshaped_layer_i = ie.input(a)
+                    reshaped_layer_i = layers.expand(
+                        reshaped_layer_i, expand_times=[1, self.beam_size, 1, 1, 1, 1])
+                    # layers.Print(reshaped_layer_i, summarize=4,
+                    #             first_n=5, message="True Block")
+
+                    layers.assign(reshaped_layer_i, concated_tensor)
+                    ie.output(concated_tensor)
+                with ie.false_block():
+                    reshaped_layer_i = ie.input(a)
+                    reshaped_layer_i = layers.reshape(
+                        reshaped_layer_i, shape=[-1, self.beam_size, 1, 1, self._n_head, self.max_para_num])
+                    # layers.Print(reshaped_layer_i, summarize=4,
+                    #             first_n=5, message="False Block")
+                    layers.assign(reshaped_layer_i, concated_tensor)
+                    ie.output(concated_tensor)
+                    # layers.assign(layers.array_read(
+                    #    attention_weights_array, layers.fill_constant(shape=[1], value=0, dtype="int64")), concated_tensor)
+
+                for i in range(1, self._dec_n_layer):
+                    layer_i = layers.array_read(
+                        attention_weights_array, layers.fill_constant(shape=[1], value=i, dtype="int64"))
+                    # layers.Print(layer_i, summarize=10,
+                    #             first_n=2, message="Layer_I")
+
+                    input_i = layers.reshape(
+                        layer_i, shape=[-1, 1, 1, 1, self._n_head, self.max_para_num])
+                    with ie.true_block():
+                        reshaped_layer_i = ie.input(input_i)
+                        reshaped_layer_i = layers.expand(
+                            reshaped_layer_i, expand_times=[1, self.beam_size, 1, 1, 1, 1])
+                        # layers.Print(reshaped_layer_i, summarize=4,
+                        #             first_n=5, message="True Block")
+
+                        layers.assign(reshaped_layer_i, test_tensor)
+                        ie.output(reshaped_layer_i)
+                    with ie.false_block():
+                        reshaped_layer_i = ie.input(input_i)
+                        """reshaped_layer_i = layers.expand(
+                            reshaped_layer_i, expand_times=[1, self.beam_size, 1, 1, 1, 1])
+                        ie.output(reshaped_layer_i)
+                        """
+                        reshaped_layer_i = ie.input(input_i)
+                        # layers.Print(reshaped_layer_i, summarize=4,
+                        #             first_n=5, message="False Block Input")
+                        reshaped_layer_i = layers.reshape(
+                            reshaped_layer_i, shape=[-1, self.beam_size, 1, 1, self._n_head, self.max_para_num])
+                        # layers.Print(reshaped_layer_i, summarize=4,
+                        #             first_n=5, message="False Block")
+                        layers.assign(reshaped_layer_i, test_tensor)
+                        ie.output(reshaped_layer_i)
+
+                    # output = ie()
+
+                    # layers.Print(test_tensor, summarize=4,
+                    #            first_n=2, message="reshaped_layer_i")
+
+                    # layers.Print(test_tensor, summarize=10,
+                    #             first_n=5, message="Test_Tensor")
+                    # concat_list.append(test_tensor)
+                    concated_tensor = layers.concat(
+                        input=[concated_tensor, test_tensor], axis=3)
+
+                # concated_tensor = layers.concat(
+                #    input=concat_list, axis=3)
+
+                layers.array_write(
+                    concated_tensor, step_idx, attention_weights_array_token)
+
                 layers.increment(x=step_idx, value=1.0, in_place=True)
+                # number_of_steps = number_of_steps + 1
                 layers.increment(x=step_next_idx, value=1.0, in_place=True)
                 # cell states(caches) have been updated in wrap_decoder,
                 # only need to update beam search states here.
@@ -725,26 +839,87 @@ class GraphSumModel(object):
             finished_ids, finished_scores = layers.beam_search_decode(
                 ids, scores, beam_size=self.beam_size, end_id=self.eos_idx)
 
+            # concat_list = []
+
+            cond = layers.greater_than(step_idx, layers.fill_constant(
+                shape=[1], value=0, dtype="int64"))
+            while_oper = layers.While(cond)
+            number_steps = layers.assign(step_idx)
+            weight_tensor = layers.create_tensor(dtype="float64")
+            layers.assign(layers.array_read(
+                attention_weights_array_token, layers.increment(number_steps, value=-1, in_place=False)), weight_tensor)
+            with while_oper.block():
+
+                index = layers.elementwise_sub(number_steps, step_idx)
+
+                layers.Print(index, first_n=5, message="index")
+                token_i = layers.array_read(
+                    attention_weights_array_token, index)
+                # layers.Print(token_i, first_n=5,
+                #             message="Token_i to append")
+                """layers.Print(weight_tensor, first_n=50,
+                             message="Weight Tensor in Loop")"""
+                layers.increment(step_idx, value=-1, in_place=True)
+                """layers.Print(step_idx, first_n=50,
+                             message="step_idx")"""
+                res = layers.concat([weight_tensor, token_i], axis=2)
+                layers.assign(res, weight_tensor)
+                layers.greater_than(step_idx, layers.fill_constant(
+                    shape=[1], value=0, dtype="int64"), cond)
+
+                # concat_list.append(token_i)
+
+            """
+            weight_tensor = layers.concat(
+                input=concat_list, axis=2)"""
+
+            #layers.Print(weight_tensor, message="Weight Tensor")
+            """weight_tensor = layers.array_read(
+                attention_weights_array_token, layers.fill_constant(shape=[1], value=0, dtype="int64"))"""
             # layers.Print(finished_ids, summarize=5, first_n=2,
             #             message="finished_ids")
             # layers.Print(finished_scores, summarize=5, first_n=2,
             #             message="finished_scors")
 
-            return finished_ids, finished_scores
+            # attention_weights_array = layers.concat(
+            #    attention_weights_array, axis=1)
+            return finished_ids, finished_scores, weight_tensor
 
-        finished_ids, finished_scores = beam_search()
+        finished_ids, finished_scores, weight_tensor = beam_search()
 
-        layers.Print(finished_ids, summarize=5, first_n=2,
-                     message="finished_ids")
-        layers.Print(finished_scores, summarize=5, first_n=2,
-                     message="finished_scores")
+        # layers.Print(finished_ids, summarize=5, first_n=2,
+        #             message="finished_ids")
+        # layers.Print(finished_scores, summarize=5, first_n=2,
+        #             message="finished_scores")
+
+        """concat_list = []
+        for i in range(self._dec_n_layer):
+            layer_i = layers.array_read(
+                attention_weights_array, layers.fill_constant(shape=[1], value=i, dtype="int64"))
+            layers.Print(layer_i, summarize=4, first_n=2, message="Layer_I")
+
+            reshaped_layer_i = layers.reshape(
+                layer_i, shape=[-1, self.beam_size, 1, self._n_head, 1, self.max_para_num])
+            layers.Print(reshaped_layer_i, summarize=4,
+                         first_n=2, message="reshaped_layer_i")
+
+            concat_list.append(reshaped_layer_i)
+            # graph_vars["attention_weights_" + str(i)] = layers.array_read(
+            #    attention_weights_array, layers.fill_constant(shape=[1], value=i, dtype="int64"))
+
+        # "attention_weights_array": layers.array_read(attention_weights_array, layers.fill_constant(shape=[1], value=1, dtype="int64"))
+        # }
+
+        concated_tensor = layers.concat(input=concat_list, axis=1)
+"""
+        # layers.Print(weight_tensor, summarize=2,
+        #             first_n=2, message="concated_tensor")
 
         graph_vars = {
             "finished_ids": finished_ids,
             "finished_scores": finished_scores,
-            "data_ids": data_ids
-        }
-
+            "data_ids": data_ids,
+            "weights":  weight_tensor}
         for k, v in graph_vars.items():
             v.persistable = True
 

@@ -35,6 +35,7 @@ from nltk.tokenize import sent_tokenize
 
 class NoDaemonProcess(multiprocessing.Process):
     """ make 'daemon' attribute always return False"""
+
     def _get_daemon(self):
         return False
 
@@ -56,10 +57,13 @@ def format_to_json(args):
                      'valid': [args.valid_src, args.valid_tgt],
                      'test': [args.test_src, args.test_tgt]}
 
-    for corpus_type in ['test']:
-        src_files = codecs.open(corpora_files[corpus_type][0], 'r', 'utf-8').readlines()[:args.num_examples]
-        tgt_files = codecs.open(corpora_files[corpus_type][1], 'r', 'utf-8').readlines()[:args.num_examples]
-        assert len(src_files) == len(tgt_files), "the number of src files is not equal with tgt files!"
+    for corpus_type in ['test', "train"]:
+        src_files = codecs.open(
+            corpora_files[corpus_type][0], 'r', 'utf-8').readlines()[:args.num_examples]
+        tgt_files = codecs.open(
+            corpora_files[corpus_type][1], 'r', 'utf-8').readlines()[:args.num_examples]
+        assert len(src_files) == len(
+            tgt_files), "the number of src files is not equal with tgt files!"
 
         a_lst = [(src, tgt, args) for src, tgt in zip(src_files, tgt_files)]
         pool = Pool(args.n_cpus)
@@ -68,7 +72,8 @@ def format_to_json(args):
         for d in pool.imap_unordered(_format_to_json, a_lst):
             dataset.append(d)
             if len(dataset) > args.shard_size:
-                pt_file = pjoin(args.json_path, "{:s}.{:d}.json".format(corpus_type, p_ct))
+                pt_file = pjoin(
+                    args.json_path, "{:s}.{:d}.json".format(corpus_type, p_ct))
                 with open(pt_file, 'w') as save:
                     save.write(json.dumps(dataset, ensure_ascii=False))
                     print("Written {:s}.{:d}.json".format(corpus_type, p_ct))
@@ -79,7 +84,8 @@ def format_to_json(args):
         pool.join()
 
         if len(dataset) > 0:
-            pt_file = pjoin(args.json_path, "{:s}.{:d}.json".format(corpus_type, p_ct))
+            pt_file = pjoin(
+                args.json_path, "{:s}.{:d}.json".format(corpus_type, p_ct))
             with open(pt_file, 'w') as save:
                 save.write(json.dumps(dataset, ensure_ascii=False))
                 print("Written {:s}.{:d}.json".format(corpus_type, p_ct))
@@ -94,12 +100,16 @@ def _format_to_json(params):
     docs = []
     # source input
     docs_strs = src.split('story_separator_special_tag')
-
+    print("Number of examples: %d" % (len(docs_strs)))
     for doc_str in docs_strs:
         # split into sentences
         doc_lines = doc_str.strip().split('     ')
+        if args.sentence_level:
+            doc_lines = [
+                sent for para in doc_lines for sent in para.split(".")]
         # split each sentence into tokens and remove empty sentence
-        doc_sents = [sent.strip().replace(r' +', ' ').split() for sent in doc_lines if sent.strip() != '']
+        doc_sents = [sent.strip().replace(r' +', ' ').split()
+                     for sent in doc_lines if sent.strip() != '']
         docs.append(doc_sents)
 
     # target summary
@@ -120,7 +130,8 @@ def format_to_paddle(args):
             real_name = json_f.split('\\')[-1]
             print(real_name)
             a_lst.append((json_f, args, pjoin(args.data_path,
-                                              "MultiNews." + str(args.max_nsents)
+                                              "MultiNews." +
+                                              str(args.max_nsents)
                                               + "." + real_name)))
 
         pool = NoDaemonProcessPool(args.n_cpus)
@@ -165,33 +176,36 @@ def _format_to_paddle(params):
         total_docs += 1
 
         if args.sim_function == "tf-idf":
-            sim_graph, larger_s, sum_s = construct_tfidf_sim_graph_by_gensim(src_tokens, args)
+            sim_graph, larger_s, sum_s = construct_tfidf_sim_graph_by_gensim(
+                src_tokens, args)
         elif args.sim_function == "lsi":
-            sim_graph, larger_s, sum_s = construct_lsi_sim_graph(src_tokens, args)
+            sim_graph, larger_s, sum_s = construct_lsi_sim_graph(
+                src_tokens, args)
         elif args.sim_function == "lda":
             res = construct_lda_sim_graph(src_tokens, args)
             if res is None:
                 continue
             else:
                 sim_graph, larger_s, sum_s = res
+                sim_graph = [list(s.astype("str")) for s in sim_graph]
         else:
             raise ValueError("The sim function has been set wrong!")
 
         total_larger += larger_s
         total_sum += sum_s
 
-        sim_graph = sim_graph
         b_data_dict = {"src": src_token_ids, "tgt": tgt_token_ids,
                        'src_str': src_txt, "tgt_str": tgt_txt,
                        'sim_graph': sim_graph}
         datasets.append(b_data_dict)
 
-    print(len(datasets))
     print('Saving to %s' % save_file)
-    print('total_docs:%s    total_sens:%s    toatl_words:%s' % (total_docs, total_sens, total_words))
+    print('total_docs:%s    total_sens:%s    toatl_words:%s' %
+          (total_docs, total_sens, total_words))
     print('#sen/doc:%s    #word/doc:%s    #word/sen:%s' % (
-    total_sens / total_docs, total_words / total_docs, total_words / total_sens))
-    print('The ratio of similarity larger than %s is %s' % (args.sim_threshold, total_larger / (total_sum + 1e-18)))
+        total_sens / total_docs, total_words / total_docs, total_words / total_sens))
+    print('The ratio of similarity larger than %s is %s' %
+          (args.sim_threshold, total_larger / (total_sum + 1e-18)))
     with open(save_file, 'w') as save:
         save.write(json.dumps(datasets, ensure_ascii=False))
     datasets = []
@@ -216,7 +230,8 @@ def construct_tfidf_sim_graph(sents, args):
     for i in range(len(sents)):
         bow_i = bows[i]
         for term in bow_i:
-            bow_i[term] = bow_i[term] * math.log(float(len(sents)) / (doc_freq[term] + 1e-18))
+            bow_i[term] = bow_i[term] * \
+                math.log(float(len(sents)) / (doc_freq[term] + 1e-18))
 
     sim_memory = defaultdict(float)
     total = 0.
@@ -282,7 +297,8 @@ def construct_tfidf_sim_graph_by_gensim(corpus, args):
             frequency[token] += 1
 
     # stem each word
-    processed_corpus = [[p_stemmer.stem(token) for token in text if frequency[token] > 1] for text in texts]
+    processed_corpus = [[p_stemmer.stem(
+        token) for token in text if frequency[token] > 1] for text in texts]
 
     dictionary = corpora.Dictionary(processed_corpus)
     bow_corpus = [dictionary.doc2bow(text) for text in processed_corpus]
@@ -298,7 +314,8 @@ def construct_tfidf_sim_graph_by_gensim(corpus, args):
             print(bow_corpus[i])
             # exit(1)
 
-    index = similarities.SparseMatrixSimilarity(corpus_tfidf, num_features=len(dictionary))
+    index = similarities.SparseMatrixSimilarity(
+        corpus_tfidf, num_features=len(dictionary))
 
     total = 0.
     count_large = 0.
@@ -334,9 +351,11 @@ def get_optimal_lsimodel_by_coherence_values(corpus, texts, dictionary, stop=100
     num_lists = range(start, stop, step)
     for num_topics in num_lists:
         # generate LSA model
-        model = models.LsiModel(corpus=corpus, num_topics=num_topics, id2word=dictionary)  # train model
+        model = models.LsiModel(
+            corpus=corpus, num_topics=num_topics, id2word=dictionary)  # train model
         model_list.append(model)
-        coherencemodel = models.CoherenceModel(model=model, texts=texts, dictionary=dictionary, coherence='c_v')
+        coherencemodel = models.CoherenceModel(
+            model=model, texts=texts, dictionary=dictionary, coherence='c_v')
         coherence_values.append(coherencemodel.get_coherence())
 
     print("num_topics: %s" % str(num_lists))
@@ -372,7 +391,8 @@ def construct_lsi_sim_graph(corpus, args):
             frequency[token] += 1
 
     # stem each word
-    processed_corpus = [[p_stemmer.stem(token) for token in text] for text in texts]
+    processed_corpus = [[p_stemmer.stem(token)
+                         for token in text] for text in texts]
 
     dictionary = corpora.Dictionary(processed_corpus)
     bow_corpus = [dictionary.doc2bow(text) for text in processed_corpus]
@@ -389,13 +409,15 @@ def construct_lsi_sim_graph(corpus, args):
         lsi = models.LsiModel(corpus_tfidf, id2word=dictionary,
                               num_topics=args.num_topics)  # initialize an LSI transformation
 
-    corpus_lsi = lsi[corpus_tfidf]  # create a double wrapper over the original corpus: bow->tfidf->fold-in-lsi
+    # create a double wrapper over the original corpus: bow->tfidf->fold-in-lsi
+    corpus_lsi = lsi[corpus_tfidf]
 
     # for i, doc in enumerate(corpus_lsi):
     #     if len(doc) == 0:
     #         print("The lsi is empty: %s" % raw_corpus[i])
 
-    index = similarities.MatrixSimilarity(corpus_lsi, num_features=len(dictionary))
+    index = similarities.MatrixSimilarity(
+        corpus_lsi, num_features=len(dictionary))
 
     total = 0.
     count_large = 0.
@@ -434,7 +456,8 @@ def get_optimal_ldamodel_by_coherence_values(corpus, texts, dictionary, stop=100
         model = models.LdaModel(corpus=corpus, num_topics=num_topics, id2word=dictionary,
                                 alpha='auto', eta='auto', eval_every=None)  # train model
         model_list.append(model)
-        coherencemodel = models.CoherenceModel(model=model, texts=texts, dictionary=dictionary, coherence='c_v')
+        coherencemodel = models.CoherenceModel(
+            model=model, texts=texts, dictionary=dictionary, coherence='c_v')
         coherence_values.append(coherencemodel.get_coherence())
 
     print("num_topics: %s" % str(num_lists))
@@ -470,7 +493,8 @@ def construct_lda_sim_graph(corpus, args):
             frequency[token] += 1
 
     # stem each word
-    processed_corpus = [[p_stemmer.stem(token) for token in text] for text in texts]
+    processed_corpus = [[p_stemmer.stem(token)
+                         for token in text] for text in texts]
 
     dictionary = corpora.Dictionary(processed_corpus)
 
@@ -481,15 +505,18 @@ def construct_lda_sim_graph(corpus, args):
 
     # train the model
     if args.find_opt_num:
-        lda = get_optimal_ldamodel_by_coherence_values(corpus=bow_corpus, texts=processed_corpus, dictionary=dictionary)
+        lda = get_optimal_ldamodel_by_coherence_values(
+            corpus=bow_corpus, texts=processed_corpus, dictionary=dictionary)
     else:
         lda = models.LdaModel(corpus=bow_corpus, num_topics=args.num_topics, id2word=dictionary,
                               alpha='auto', eta='auto', eval_every=None, minimum_probability=0.0)
     # LdaMulticore(bow_corpus, id2word=dictionary, num_topics=args.num_topics, eta='auto',
     # eval_every=None, minimum_probability=0.0)
 
-    corpus_lda = lda[bow_corpus]  # create a double wrapper over the original corpus: bow->lda
-    index = similarities.MatrixSimilarity(corpus_lda, num_features=len(dictionary))
+    # create a double wrapper over the original corpus: bow->lda
+    corpus_lda = lda[bow_corpus]
+    index = similarities.MatrixSimilarity(
+        corpus_lda, num_features=len(dictionary))
 
     print("corpus_lda[0]: %s" % str(corpus_lda[0]))
 
@@ -512,6 +539,7 @@ def construct_lda_sim_graph(corpus, args):
 
 class SummData(object):
     """Process data by sentencepiece tokenization"""
+
     def __init__(self, args):
         self.args = args
         """load vocabulary"""
@@ -530,7 +558,8 @@ class SummData(object):
         docs = []
         for doc in src:
             # remove too short sentence
-            doc_filtered = [sent for sent in doc if len(sent) > self.args.min_src_ntokens]
+            doc_filtered = [sent for sent in doc if len(
+                sent) > self.args.min_src_ntokens]
             if len(doc_filtered) > 0:
                 docs.append(doc_filtered)
 
@@ -541,11 +570,13 @@ class SummData(object):
             for sent in doc:
                 total_words += len(sent)
 
-        print("doc_num: %s    total_sens:%s    total_words:%s" % (docs_num, total_sens, total_words))
+        print("doc_num: %s    total_sens:%s    total_words:%s" %
+              (docs_num, total_sens, total_words))
 
         # truncate long documents, combine lead sentences of each document
         if total_sens > self.args.max_nsents:
-            docs_filtered = _filter_and_combine_docs(docs, list(range(docs_num)), self.args.max_nsents, docs_num)
+            docs_filtered = _filter_and_combine_docs(docs, list(
+                range(docs_num)), self.args.max_nsents, docs_num)
         else:
             docs_filtered = docs
 
@@ -554,7 +585,8 @@ class SummData(object):
             src_filtered.extend(doc)
 
         total_words = sum([len(sent) for sent in src_filtered])
-        print("After filtered, total_sens:%s    total_words:%s" % (str(len(src_filtered)), total_words))
+        print("After filtered, total_sens:%s    total_words:%s" %
+              (str(len(src_filtered)), total_words))
 
         assert len(src_filtered) <= self.args.max_nsents, "docs filtered wrong!!!"
 
@@ -563,7 +595,8 @@ class SummData(object):
             return None
 
         # truncate too long sentence
-        src_filtered_short = [sent[:self.args.max_src_ntokens] for sent in src_filtered]
+        src_filtered_short = [sent[:self.args.max_src_ntokens]
+                              for sent in src_filtered]
         src_txt = [' '.join(sent) for sent in src_filtered_short]
         original_src_txt = [' '.join(sent) for sent in src_filtered]
 
