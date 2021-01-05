@@ -817,7 +817,8 @@ class GraphSumModel(object):
                 layers.array_write(
                     concated_tensor, step_idx, attention_weights_array_token)
 
-                layers.Print(concated_tensor, first_n=5, "Step Concated Tensor")
+                layers.Print(concated_tensor, first_n=5,
+                             message="Step Concated Tensor")
                 layers.increment(x=step_idx, value=1.0, in_place=True)
                 # number_of_steps = number_of_steps + 1
                 layers.increment(x=step_next_idx, value=1.0, in_place=True)
