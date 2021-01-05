@@ -855,8 +855,8 @@ class GraphSumModel(object):
                 layers.Print(index, first_n=5, message="index")
                 token_i = layers.array_read(
                     attention_weights_array_token, index)
-                # layers.Print(token_i, first_n=5,
-                #             message="Token_i to append")
+                layers.Print(token_i, first_n=5,
+                             message="Token_i to append")
                 """layers.Print(weight_tensor, first_n=50,
                              message="Weight Tensor in Loop")"""
                 layers.increment(step_idx, value=-1, in_place=True)
