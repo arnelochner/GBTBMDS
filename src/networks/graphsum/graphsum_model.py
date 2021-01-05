@@ -834,7 +834,8 @@ class GraphSumModel(object):
                 length_cond = layers.less_than(x=step_idx, y=max_len)
                 finish_cond = layers.logical_not(
                     layers.is_empty(x=selected_ids))
-                layers.Print(parent_idx, first_n=500, message="parent_idx")
+                layers.Print(parent_idx, first_n=500,
+                             summarize=55, message="parent_idx")
                 layers.Print(selected_ids, first_n=500, message="selected_ids")
 
                 layers.logical_and(x=length_cond, y=finish_cond, out=cond)
