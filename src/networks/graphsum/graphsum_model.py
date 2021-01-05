@@ -728,8 +728,6 @@ class GraphSumModel(object):
                     end_id=self.eos_idx,
                     return_parent_idx=True)
 
-                concat_list = []
-
                 first_iter = layers.expand(layers.unsqueeze(
                     layers.fill_constant(shape=[1], value=0, dtype="int64"), axes=[0]), expand_times=[layers.shape(curr_scores)[0], 1])
 
@@ -819,6 +817,7 @@ class GraphSumModel(object):
                 layers.array_write(
                     concated_tensor, step_idx, attention_weights_array_token)
 
+                layers.Print(concated_tensor, first_n=5, "Step Concated Tensor")
                 layers.increment(x=step_idx, value=1.0, in_place=True)
                 # number_of_steps = number_of_steps + 1
                 layers.increment(x=step_next_idx, value=1.0, in_place=True)
