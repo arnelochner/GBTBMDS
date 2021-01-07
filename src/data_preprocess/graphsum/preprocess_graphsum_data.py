@@ -91,8 +91,10 @@ if __name__ == '__main__':
     if not os.path.exists(args.json_path):
         os.mkdir(args.json_path)
 
-    if not os.path.exists(args.data_path):
-        os.mkdir(args.data_path)
+    text = "_sentence" if args.sentence_level else "_paragraph"
+
+    if not os.path.exists(args.data_path + text):
+        os.mkdir(args.data_path + text)
 
     do_format_to_json(args)
     do_format_to_paddle(args)
