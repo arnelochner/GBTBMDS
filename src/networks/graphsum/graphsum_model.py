@@ -563,7 +563,7 @@ class GraphSumModel(object):
 
         def beam_search():
             """Beam search function"""
-
+            test_liste = []
             max_len = layers.fill_constant(
                 shape=[1], dtype=start_tokens.dtype, value=self.max_out_len, force_cpu=True)
 
@@ -599,6 +599,17 @@ class GraphSumModel(object):
             # caches contains states of history steps in decoder self-attention
             # and static encoder output projections in encoder-decoder attention
             # to reduce redundant computation.
+
+            padding_helper = layers.fill_constant_batch_size_like(dtype="float64", value=0,
+                                                                  input=start_tokens, shape=[-1, self.beam_size, 1, self._dec_n_layer, self._n_head, self.max_para_num])
+
+            parent_padding_helper = layers.fill_constant_batch_size_like(dtype="float64", value=0,
+                                                                         input=start_tokens, shape=[-1, self.beam_size, 1])
+            scores_padding_helper = layers.fill_constant_batch_size_like(dtype="float64", value=0,
+                                                                         input=start_tokens, shape=[-1, self.beam_size, 1])
+            # scores_padding_helper = layers.reshape(
+            #    scores_padding_helper, shape=[-1, self.beam_size, 1])
+
             caches = [
                 {
                     "k":  # for self attention
@@ -632,13 +643,19 @@ class GraphSumModel(object):
             attention_weights_array_token = layers.create_array(
                 dtype="float64")
 
+            parrent_idx_array = layers.create_array(dtype="int64")
+
+            scores_array = layers.create_array(dtype="float64")
+
             with while_op.block():
+
                 pre_ids = layers.array_read(array=ids, i=step_idx)
                 pre_ids = layers.reshape(pre_ids, (-1, 1, 1), inplace=True)
                 # Since beam_search_op dosen't enforce pre_ids' shape, we can do
                 # inplace reshape here which actually change the shape of pre_ids.
                 # pre_ids = layers.reshape(pre_ids, (-1, 1, 1), inplace=True)
                 pre_scores = layers.array_read(array=scores, i=step_idx)
+                layers.Print(pre_scores, message="pre_scores")
                 # gather cell states corresponding to selected parent
                 pre_src_words_attn_bias = layers.gather(
                     tgt_src_words_attn_bias, index=parent_idx)
@@ -657,6 +674,10 @@ class GraphSumModel(object):
 
                 # layers.Print(pre_ids, summarize=5,
                 #             first_n=3, message="Pre_ids")
+                layers.Print(pre_ids, summarize=50,
+                             first_n=500, message="Pre_ids")
+                layers.Print(parent_idx, summarize=50,
+                             first_n=500, message="parent_idx")
                 logits = self.decode(dec_input=(pre_ids, pre_pos, None, pre_src_words_attn_bias,
                                                 pre_src_sents_attn_bias, pre_graph_attn_bias),
                                      enc_words_output=enc_words_output,
@@ -669,6 +690,7 @@ class GraphSumModel(object):
                 eos_index = layers.fill_constant(shape=[layers.shape(logits)[0]],
                                                  dtype='int64',
                                                  value=self.eos_idx)
+
                 eos_index = fluid.one_hot(eos_index, depth=self.voc_size)
                 less_cond = layers.cast(layers.less_than(
                     x=step_idx, y=min_len), dtype='float32')
@@ -681,6 +703,9 @@ class GraphSumModel(object):
                 # end beams and end sentences(batch reduction)
                 topk_scores, topk_indices = layers.topk(
                     input=layers.softmax(revised_logits), k=self.beam_size)
+
+                layers.Print(topk_scores, first_n=500,
+                             summarize=50, message="topk_scores")
 
                 # Roll-Back previous-scores for length-penalty
                 # previous-scores has been length-penaltied, before this timestep length-penalty, need roll-back
@@ -716,9 +741,13 @@ class GraphSumModel(object):
                 curr_scores = layers.elementwise_div(
                     accu_scores, cur_timestep_length_penalty)
 
+                layers.Print(curr_scores, first_n=500,
+                             summarize=50, message="curr_scores")
+
                 # beam_search op uses lod to differentiate branches.
                 curr_scores = layers.lod_reset(curr_scores, pre_ids)
                 topk_indices = layers.lod_reset(topk_indices, pre_ids)
+
                 selected_ids, selected_scores, gather_idx = layers.beam_search(
                     pre_ids=pre_ids,
                     pre_scores=pre_scores,
@@ -727,6 +756,10 @@ class GraphSumModel(object):
                     beam_size=self.beam_size,
                     end_id=self.eos_idx,
                     return_parent_idx=True)
+
+                # layers.Print(selected_ids, first_n=500, message="selected_ids")
+                layers.Print(selected_scores, first_n=200, summarize=50,
+                             message="selected_scores")
 
                 first_iter = layers.expand(layers.unsqueeze(
                     layers.fill_constant(shape=[1], value=0, dtype="int64"), axes=[0]), expand_times=[layers.shape(curr_scores)[0], 1])
@@ -747,6 +780,33 @@ class GraphSumModel(object):
                 a = layers.reshape(
                     a, shape=[-1, 1, 1, 1, self._n_head, self.max_para_num])
 
+                current_parent_idx = layers.create_tensor(dtype="int64")
+
+                # Parent Idx First Iter
+                with ie.true_block():
+                    local_parent_idx = ie.input(parent_idx)
+                    local_parent_idx = layers.reshape(
+                        local_parent_idx, shape=[-1, 1, 1])
+                    local_parent_idx = layers.expand(
+                        local_parent_idx, expand_times=[1, self.beam_size, 1])
+                    # layers.Print(reshaped_layer_i, summarize=4,
+                    #             first_n=5, message="True Block")
+
+                    layers.assign(local_parent_idx, current_parent_idx)
+                    ie.output(current_parent_idx)
+
+                with ie.false_block():
+                    local_parent_idx = ie.input(parent_idx)
+                    local_parent_idx = layers.reshape(
+                        local_parent_idx, shape=[-1, self.beam_size, 1])
+                    # layers.Print(reshaped_layer_i, summarize=4,
+                    #             first_n=5, message="False Block")
+                    layers.assign(local_parent_idx, current_parent_idx)
+                    ie.output(current_parent_idx)
+                    # layers.assign(layers.array_read(
+                    #    attention_weights_array, layers.fill_constant(shape=[1], value=0, dtype="int64")), concated_tensor)
+
+                # Reshaping Attention Weights
                 with ie.true_block():
                     reshaped_layer_i = ie.input(a)
                     reshaped_layer_i = layers.expand(
@@ -775,6 +835,9 @@ class GraphSumModel(object):
 
                     input_i = layers.reshape(
                         layer_i, shape=[-1, 1, 1, 1, self._n_head, self.max_para_num])
+                    # buffer = layers.assign(input_i)
+                    # buffer.persistable = True
+                    # test_liste.append(buffer)
                     with ie.true_block():
                         reshaped_layer_i = ie.input(input_i)
                         reshaped_layer_i = layers.expand(
@@ -817,8 +880,18 @@ class GraphSumModel(object):
                 layers.array_write(
                     concated_tensor, step_idx, attention_weights_array_token)
 
-                layers.Print(concated_tensor, first_n=500,
-                             message="Step Concated Tensor")
+                layers.array_write(current_parent_idx,
+                                   step_idx, parrent_idx_array)
+
+                tmp = layers.fill_constant(
+                    shape=[1], value=0, dtype="float32")
+                tmp1 = layers.elementwise_add(tmp, pre_scores)
+                layers.Print(tmp1, first_n=200, message="TMP1")
+                tmp1 = layers.reshape(tmp1, shape=[-1, self.beam_size, 1])
+                layers.array_write(tmp1, step_idx, scores_array)
+
+                # layers.Print(concated_tensor, first_n=500,
+                #             message="Step Concated Tensor")
                 layers.increment(x=step_idx, value=1.0, in_place=True)
                 # number_of_steps = number_of_steps + 1
                 layers.increment(x=step_next_idx, value=1.0, in_place=True)
@@ -826,6 +899,7 @@ class GraphSumModel(object):
                 # only need to update beam search states here.
                 layers.array_write(selected_ids, i=step_idx, array=ids)
                 layers.array_write(selected_scores, i=step_idx, array=scores)
+
                 layers.assign(gather_idx, parent_idx)
                 layers.assign(pre_src_words_attn_bias, tgt_src_words_attn_bias)
                 layers.assign(pre_src_sents_attn_bias, tgt_src_sents_attn_bias)
@@ -834,9 +908,19 @@ class GraphSumModel(object):
                 length_cond = layers.less_than(x=step_idx, y=max_len)
                 finish_cond = layers.logical_not(
                     layers.is_empty(x=selected_ids))
-                layers.Print(parent_idx, first_n=500,
-                             summarize=55, message="parent_idx")
-                layers.Print(selected_ids, first_n=500, message="selected_ids")
+                # layers.Print(parent_idx, first_n=500,
+                #             summarize=55, message="parent_idx")
+                # layers.Print(selected_ids, first_n=500, message="selected_ids")
+
+                """ie = layers.IfElse(finish_cond)
+
+                with ie.false_block():
+                    # ie.input()
+                    reshaped_scores = layers.reshape(
+                        selected_scores, shape=[-1, self.beam_size, 1])
+                    layers.array_write(
+                        reshaped_scores, i=step_idx, array=scores_array)
+                    ie.output(reshaped_scores)"""
 
                 layers.logical_and(x=length_cond, y=finish_cond, out=cond)
 
@@ -850,36 +934,81 @@ class GraphSumModel(object):
             while_oper = layers.While(cond)
             number_steps = layers.assign(step_idx)
             weight_tensor = layers.create_tensor(dtype="float64")
-            layers.assign(layers.array_read(
-                attention_weights_array_token, layers.increment(number_steps, value=-1, in_place=False)), weight_tensor)
+            scores_tensor = layers.create_tensor(dtype="float64")
+            parent_idx_tensor = layers.create_tensor(dtype="int64")
 
-            layers.Print(weight_tensor, message="Initial weight_tensor")
+            tmp = layers.array_read(
+                attention_weights_array_token, layers.fill_constant(shape=[1], dtype="int64", value=0))
+
+            parent_tmp = layers.array_read(
+                parrent_idx_array, layers.fill_constant(shape=[1], dtype="int64", value=0))
+
+            scores_tmp = layers.array_read(
+                scores_array, layers.fill_constant(shape=[1], dtype="int64", value=0))
+
+            layers.assign(
+                layers.pad_constant_like(padding_helper, tmp, pad_value=-1), weight_tensor)
+
+            layers.assign(
+                layers.pad_constant_like(parent_padding_helper, parent_tmp, pad_value=-1), parent_idx_tensor)
+
+            layers.assign(
+                layers.pad_constant_like(scores_padding_helper, scores_tmp, pad_value=-1), scores_tensor)
+
+            layers.increment(step_idx, value=-1, in_place=True)
+
+            #layers.Print(weight_tensor, message="Initial weight_tensor")
+
+            # Concatinate arrays for each step_idx
             with while_oper.block():
 
                 index = layers.elementwise_sub(number_steps, step_idx)
 
-                layers.Print(index, first_n=5, message="index")
                 token_i = layers.array_read(
                     attention_weights_array_token, index)
-                layers.Print(token_i, first_n=5,
-                             message="Token_i to append")
-                """layers.Print(weight_tensor, first_n=50,
-                             message="Weight Tensor in Loop")"""
+
+                parent_idx_i = layers.array_read(
+                    parrent_idx_array, index)
+
+                scores_i = layers.array_read(
+                    scores_array, index)
+
                 layers.increment(step_idx, value=-1, in_place=True)
-                """layers.Print(step_idx, first_n=50,
-                             message="step_idx")"""
-                res = layers.concat([weight_tensor, token_i], axis=2)
+
+                padded_var = layers.pad_constant_like(
+                    padding_helper, token_i, pad_value=-1)
+
+                padded_parent_idx = layers.pad_constant_like(
+                    parent_padding_helper, parent_idx_i, pad_value=-1)
+
+                padded_scores = layers.pad_constant_like(
+                    scores_padding_helper, scores_i, pad_value=-1)
+
+                res = layers.concat(
+                    [weight_tensor, padded_var], axis=2)
+
+                parent_res = layers.concat(
+                    [parent_idx_tensor, padded_parent_idx], axis=2)
+
+                scores_res = layers.concat(
+                    [scores_tensor, padded_scores], axis=2)
+
+                layers.assign(parent_res, parent_idx_tensor)
+                layers.assign(scores_res, scores_tensor)
                 layers.assign(res, weight_tensor)
                 layers.greater_than(step_idx, layers.fill_constant(
                     shape=[1], value=0, dtype="int64"), cond)
 
+                #buffer = layers.assign(token_i)
+                #buffer.persistable = True
+                # test_liste.append(buffer)
                 # concat_list.append(token_i)
 
             """
             weight_tensor = layers.concat(
                 input=concat_list, axis=2)"""
 
-            #layers.Print(weight_tensor, message="Weight Tensor")
+            # layers.Print(weight_tensor, message="Weight Tensor")
             """weight_tensor = layers.array_read(
                 attention_weights_array_token, layers.fill_constant(shape=[1], value=0, dtype="int64"))"""
             # layers.Print(finished_ids, summarize=5, first_n=2,
@@ -888,11 +1017,12 @@ class GraphSumModel(object):
             #             message="finished_scors")
 
             # attention_weights_array = layers.concat(
-            #    attention_weights_array, axis=1)
-            return finished_ids, finished_scores, weight_tensor
+            layers.Print(scores_tensor, message="scores_tensor")
+            return finished_ids, finished_scores, weight_tensor, parent_idx_tensor, scores_tensor
 
-        finished_ids, finished_scores, weight_tensor = beam_search()
+        finished_ids, finished_scores, weight_tensor, parent_idx_tensor, scores_tensor = beam_search()
 
+        layers.Print(finished_scores, summarize=50, message="finished_scores")
         # layers.Print(finished_ids, summarize=5, first_n=2,
         #             message="finished_ids")
         # layers.Print(finished_scores, summarize=5, first_n=2,
@@ -925,7 +1055,11 @@ class GraphSumModel(object):
             "finished_ids": finished_ids,
             "finished_scores": finished_scores,
             "data_ids": data_ids,
-            "weights":  weight_tensor}
+            "weight_array": weight_tensor,
+            "parent_idx": parent_idx_tensor,
+            "scores_tensor": scores_tensor
+        }
+
         for k, v in graph_vars.items():
             v.persistable = True
 

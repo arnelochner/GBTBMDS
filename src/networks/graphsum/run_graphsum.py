@@ -60,7 +60,7 @@ def main(args):
     model_config = GraphSumConfig(args.config_path)
     model_config.print_config()
 
-    gpu_id = 2
+    gpu_id = 0
     gpus = fluid.core.get_cuda_device_count()
     if args.is_distributed:
         gpus = os.getenv("FLAGS_selected_gpus").split(",")
@@ -447,6 +447,8 @@ def post_process_seq(seq, bos_idx, eos_idx, output_bos=False, output_eos=False):
     Post-process the beam-search decoded sequence. Truncate from the first
     <eos> and remove the <bos> and <eos> tokens currently.
     """
+
+    print("post_process_seq %s" % (seq))
     eos_pos = len(seq) - 1
     for i, idx in enumerate(seq):
         if idx == eos_idx:
@@ -536,7 +538,9 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
             graph_vars["finished_ids"].name,
             graph_vars["finished_scores"].name,
             graph_vars["data_ids"].name,
-            graph_vars["weights"].name
+            graph_vars["weight_array"],
+            graph_vars["parent_idx"].name,
+            graph_vars["scores_tensor"].name,
         ]
 
     if do_dec:
@@ -574,16 +578,26 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 acc += total_acc
                 steps += 1
             else:
-                seq_ids, seq_scores, data_ids, weights = outputs
+                seq_ids, seq_scores, data_ids, weights, parent_idx, scores_tensor = outputs
                 #seq_ids, seq_scores, data_ids = outputs
 
-                print(weights.shape())
-                a_weights = np.array(weights)
+                weights = np.array(weights)
+                parent_idx = np.array(parent_idx)
+                scores_tensor = np.array(scores_tensor)
+
+                print("Numpy Weights shape %s" % str(weights.shape))
+                print("parent_idx shape %s" % str(parent_idx.shape))
+                print("scores shape %s" % str(scores_tensor.shape))
+
+                # print(weights.shape())
+                #a_weights = np.array(weights)
                 # print(type(attention_weights_array))
                 # print(a_weights.shape)
                 # print(a_weights)
 
-                np.save("pretrained_attention_weights", a_weights)
+                np.save("pretrained_attention_weights", weights)
+                np.save("parent_idx", parent_idx)
+                np.save("scores", scores_tensor)
 
                 # print(np.array(seq_ids).shape)
                 # print(np.array(seq_scores).shape)
@@ -594,7 +608,8 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
 
                 # print(seq_ids.shape)
                 data_ids = np.array(data_ids).reshape(-1).tolist()
-                #print("Data_Ids: %s, length: %d" % (data_ids, len(data_ids)))
+
+                print("Data_Ids: %s, length: %d" % (data_ids, len(data_ids)))
                 #print("Seq_scores_list length: %d" % (len(seq_scores_list)))
                 #print("Seq_ids length: %d" % (len(seq_ids_list)))
                 data_idx = 0
@@ -622,7 +637,20 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
 
                         # Currently only reporting greedy search results, where only the sequence with the highest score is used.
                         #tmp = []
+                        print("Example %d with data_id %d" %
+                              (i, data_ids[data_idx]))
                         for j in range(end - start):  # for each candidate
+
+                            sub_start = seq_ids.lod()[1][start + j]
+                            sub_end = seq_ids.lod()[1][start + j + 1]
+                            print("sub_start: %d sub_end: %d length %d" %
+                                  (sub_start, sub_end, sub_end - sub_start))
+
+                            score = np.array(seq_scores)[sub_end - 1]
+                            print(f"Score {score}")
+
+                        for j in range(end - start):  # for each candidate
+
                             sub_start = seq_ids.lod()[1][start + j]
                             sub_end = seq_ids.lod()[1][start + j + 1]
                             token_ids = [int(idx) for idx in post_process_seq(
