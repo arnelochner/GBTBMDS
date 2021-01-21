@@ -25,6 +25,7 @@ import paddle
 import codecs
 import numpy as np
 import sentencepiece
+import pickle
 
 from utils.logging import init_logger, logger
 from utils.check import check_gpu
@@ -302,7 +303,6 @@ def main(args):
                 share_vars_from=train_exe)
 
     if args.do_train:
-        logger.info("Start Training")
         train_pyreader.start()
         steps = 0
         if warmup_steps > 0:
@@ -315,9 +315,7 @@ def main(args):
         while True:
             try:
                 steps += 1
-                logger.info(steps)
                 if steps % skip_steps == 0:
-                    logger.info("EVALUATE")
                     outputs = evaluate(args=args, exe=train_exe, program=train_program,
                                        pyreader=train_pyreader, graph_vars=graph_vars,
                                        eval_phase="train", vocab_size=vocab_size)
@@ -340,13 +338,10 @@ def main(args):
                                    args.skip_steps / used_time))
                     time_begin = time.time()
                 else:
-                    logger.info("Step %d starting" % (steps))
                     train_exe.run(fetch_list=[])
-                    logger.info("Step %d done" % (steps))
 
                 if nccl2_trainer_id == 0:
                     if steps % args.save_steps == 0:
-                        logger.info("SAVE STEP")
                         save_path = os.path.join(args.checkpoints,
                                                  "step_" + str(steps))
                         fluid.io.save_persistables(
@@ -355,7 +350,6 @@ def main(args):
                     if steps % args.validation_steps == 0:
                         # evaluate dev set
                         if args.do_val:
-                            logger.info("EVALUATE DEV SET")
                             test_pyreader.decorate_tensor_provider(
                                 reader.data_generator(
                                     args.dev_set,
@@ -374,7 +368,6 @@ def main(args):
                                      decode_path=args.decode_path + "/valid_" + str(steps) + "_preds")
                         # evaluate test set
                         if args.do_test:
-                            logger.info("EVALUATE TEST SET")
                             test_pyreader.decorate_tensor_provider(
                                 reader.data_generator(
                                     args.test_set,
@@ -393,13 +386,11 @@ def main(args):
                                      decode_path=args.decode_path + "/test_" + str(steps) + "_preds")
 
             except fluid.core.EOFException:
-                logger.info("TRAINING FINSIHED")
                 save_path = os.path.join(
                     args.checkpoints, "step_" + str(steps))
                 fluid.io.save_persistables(exe, save_path, train_program)
                 train_pyreader.reset()
                 break
-    logger.info("finished")
     if nccl2_trainer_id == 0:
         # final eval on dev set
         if args.do_val:
@@ -448,7 +439,6 @@ def post_process_seq(seq, bos_idx, eos_idx, output_bos=False, output_eos=False):
     <eos> and remove the <bos> and <eos> tokens currently.
     """
 
-    print("post_process_seq %s" % (seq))
     eos_pos = len(seq) - 1
     for i, idx in enumerate(seq):
         if idx == eos_idx:
@@ -579,7 +569,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 steps += 1
             else:
                 seq_ids, seq_scores, data_ids, weights, parent_idx, scores_tensor = outputs
-                #seq_ids, seq_scores, data_ids = outputs
+                # seq_ids, seq_scores, data_ids = outputs
 
                 weights = np.array(weights)
                 parent_idx = np.array(parent_idx)
@@ -590,7 +580,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 print("scores shape %s" % str(scores_tensor.shape))
 
                 # print(weights.shape())
-                #a_weights = np.array(weights)
+                # a_weights = np.array(weights)
                 # print(type(attention_weights_array))
                 # print(a_weights.shape)
                 # print(a_weights)
@@ -610,9 +600,18 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 data_ids = np.array(data_ids).reshape(-1).tolist()
 
                 print("Data_Ids: %s, length: %d" % (data_ids, len(data_ids)))
-                #print("Seq_scores_list length: %d" % (len(seq_scores_list)))
-                #print("Seq_ids length: %d" % (len(seq_ids_list)))
+                # print("Seq_scores_list length: %d" % (len(seq_scores_list)))
+                # print("Seq_ids length: %d" % (len(seq_ids_list)))
                 data_idx = 0
+
+                longest_beam_array = np.zeros(shape=weights.shape[:1])
+
+                token_beam_array = np.zeros(
+                    shape=weights.shape[:3])
+
+                summary_beam_list = []
+
+                scores_array = np.zeros(shape=weights.shape[:3])
 
                 for seq_ids, seq_scores in zip(seq_ids_list, seq_scores_list):
                     # How to parse the results:
@@ -635,10 +634,14 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                         start = seq_ids.lod()[0][i]
                         end = seq_ids.lod()[0][i + 1]
 
+                        length_list = []
+
                         # Currently only reporting greedy search results, where only the sequence with the highest score is used.
-                        #tmp = []
+                        # tmp = []
+
+                        data_id = data_ids[data_idx]
                         print("Example %d with data_id %d" %
-                              (i, data_ids[data_idx]))
+                              (i, data_id))
                         for j in range(end - start):  # for each candidate
 
                             sub_start = seq_ids.lod()[1][start + j]
@@ -646,8 +649,14 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                             print("sub_start: %d sub_end: %d length %d" %
                                   (sub_start, sub_end, sub_end - sub_start))
 
+                            length_list.append(sub_end-sub_start)
                             score = np.array(seq_scores)[sub_end - 1]
                             print(f"Score {score}")
+
+                        max_beam_length = np.max(length_list)
+
+                        longest_beam_array[data_id
+                                           ] = max_beam_length
 
                         for j in range(end - start):  # for each candidate
 
@@ -656,6 +665,9 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                             token_ids = [int(idx) for idx in post_process_seq(
                                 np.array(seq_ids)[sub_start:sub_end],
                                 evaluate.symbols['BOS'], evaluate.symbols['EOS'])]
+
+                            token_beam_array[data_id,
+                                             j, :len(token_ids)] = token_ids
 
                             # print(len(token_ids))
 
@@ -666,15 +678,34 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                             hyp_str = re.sub('\\s+', ' ', hyp_str)
                             print(hyp_str)
 
-                            score = np.array(seq_scores)[sub_end - 1]
-                            # print(score)
-                            #print("Data_idx: %d" % (data_idx))
-                            #tmp.append((hyp_str, score))
-                            data_id = data_ids[data_idx]
-                            data_idx += 1
-                            dec_out[data_id] = (hyp_str, score)
+                            summary_beam_list.append(hyp_str)
 
-                            break
+                            score = np.array(seq_scores)[sub_end - 1]
+
+                            scores_array[data_id, j, :
+                                         sub_end-sub_start] = np.array(seq_scores[sub_start:sub_end])
+
+                            print(np.array(seq_scores[sub_start:sub_end]))
+
+                            # print(score)
+                            # print("Data_idx: %d" % (data_idx))
+                            # tmp.append((hyp_str, score))
+
+                            if j == 0:
+                                dec_out[data_id] = (hyp_str, score)
+
+                            # break
+                        data_idx += 1
+
+                save_dict = {
+                    "longest_beam_array": longest_beam_array,
+                    "summary_beam_list": summary_beam_list,
+                    "scores_array": scores_array,
+                    "token_beam_array": token_beam_array
+                }
+
+                with open("save_dict", "wb") as handle:
+                    pickle.dump(save_dict, handle)
 
         except fluid.core.EOFException:
             pyreader.reset()
@@ -698,8 +729,8 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
 
         for i in keys:
             ref_str = evaluate.spm_vocab.DecodeIds(
-                post_process_seq(features[i].tgt, evaluate.symbols['BOS'], evaluate.symbols['EOS'])). \
-                replace(' ##', '').replace('<S>', '').replace('</S>', '').replace('<Q>', '<q>').replace('<P>', ' '). \
+                post_process_seq(features[i].tgt, evaluate.symbols['BOS'], evaluate.symbols['EOS'])).\
+                replace(' ##', '').replace('<S>', '').replace('</S>', '').replace('<Q>', '<q>').replace('<P>', ' ').\
                 replace('<T>', '').replace('<PAD>', '').replace('⁇', '"')
             ref_str = re.sub('\\s+', ' ', ref_str)
 
