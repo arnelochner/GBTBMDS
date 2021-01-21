@@ -3,7 +3,7 @@ set -eux
 
 source ./env_local/env_local.sh
 source ./env_local/utils.sh
-source ./model_config/graphsum_model_conf_local_multinews
+source ./model_config/graphsum_model_conf_local_multinews_sentences
 
 if [ ! -d log  ];then
   mkdir log
@@ -50,7 +50,7 @@ python3 -u ./src/launch.py ${distributed_args} \
                --weight_sharing true \
                --do_train true \
                --do_val false \
-               --do_test true \
+               --do_test false \
                --do_dec true \
                --verbose true \
                --batch_size 4096 \
@@ -62,8 +62,8 @@ python3 -u ./src/launch.py ${distributed_args} \
                --test_set ${TASK_DATA_PATH}/test \
                --vocab_path ${VOCAB_PATH} \
                --config_path model_config/graphsum_config.json \
-               --checkpoints ./models/graphsum_multinews \
-               --decode_path ./results/graphsum_multinews \
+               --checkpoints ./models/graphsum_multinews_sentences \
+               --decode_path ./results/graphsum_multinews_sentences \
                --lr_scheduler ${lr_scheduler} \
                --save_steps 10000 \
                --weight_decay ${WEIGHT_DECAY} \
@@ -74,7 +74,7 @@ python3 -u ./src/launch.py ${distributed_args} \
                --max_para_len 60 \
                --max_tgt_len 300 \
                --max_out_len 300 \
-               --min_out_len 200 \
+               --min_out_len 300 \
                --graph_type "similarity" \
                --len_penalty 0.6 \
                --block_trigram False \
@@ -85,5 +85,5 @@ python3 -u ./src/launch.py ${distributed_args} \
                --pos_win 2.0 \
                --label_smooth_eps 0.1 \
                --num_iteration_per_drop_scope 10 \
-               --log_file "log/graphsum_multinews.log" \
-               --random_seed 1 > log/lanch.log 2>&1
+               --log_file "log/graphsum_multinews_sentences.log" \
+               --random_seed 1 > log/launch_sentences.log 2>&1
