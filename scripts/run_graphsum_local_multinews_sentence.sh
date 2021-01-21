@@ -70,7 +70,7 @@ python3 -u ./src/launch.py ${distributed_args} \
                --warmup_steps ${WARMUP_STEPS} \
                --validation_steps 20000 \
                --epoch 10 \
-               --max_para_num 30 \
+               --max_para_num 100 \
                --max_para_len 60 \
                --max_tgt_len 300 \
                --max_out_len 300 \
