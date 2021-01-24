@@ -57,7 +57,12 @@ def format_to_json(args):
                      'valid': [args.valid_src, args.valid_tgt],
                      'test': [args.test_src, args.test_tgt]}
 
-    for corpus_type in ['test', "train"]:
+    datasets = ["test", "train", "valid"]
+
+    if args.dataset != "":
+        datasets = [args.dataset]
+
+    for corpus_type in datasets:
         src_files = codecs.open(
             corpora_files[corpus_type][0], 'r', 'utf-8').readlines()[:args.num_examples]
         tgt_files = codecs.open(
@@ -124,13 +129,14 @@ def format_to_paddle(args):
         datasets = [args.dataset]
     else:
         datasets = ['test']
+    text = "_sentence" if args.sentence_level else "_paragraph"
     for corpus_type in datasets:
         a_lst = []
         for json_f in glob.glob(pjoin(args.json_path, '*' + corpus_type + '.*.json')):
-            real_name = json_f.split('\\')[-1]
-            print(real_name)
-            a_lst.append((json_f, args, pjoin(args.data_path,
-                                              "MultiNews." +
+            real_name = json_f.split('/')[-1]
+
+            a_lst.append((json_f, args, pjoin(args.data_path + text, corpus_type,
+                                              "MultiNews." +  
                                               str(args.max_nsents)
                                               + "." + real_name)))
 
@@ -151,6 +157,7 @@ def _format_to_paddle(params):
 
     summ_data = SummData(args)
 
+    print("Save File %s" % save_file)
     print('Processing %s' % json_file)
     jobs = json.load(open(json_file))
 
@@ -206,6 +213,7 @@ def _format_to_paddle(params):
         total_sens / total_docs, total_words / total_docs, total_words / total_sens))
     print('The ratio of similarity larger than %s is %s' %
           (args.sim_threshold, total_larger / (total_sum + 1e-18)))
+    os.makedirs(os.path.dirname(save_file), exist_ok=True)
     with open(save_file, 'w') as save:
         save.write(json.dumps(datasets, ensure_ascii=False))
     datasets = []
