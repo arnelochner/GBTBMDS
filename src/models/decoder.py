@@ -192,8 +192,6 @@ def transformer_decoder(dec_input,
 def graph_decoder_layer(dec_input,
                         enc_words_output,
                         enc_sents_output,
-                        attention_weights_array,
-                        layer_id,
                         slf_attn_bias,
                         dec_enc_words_attn_bias,
                         dec_enc_sents_attn_bias,
@@ -254,8 +252,6 @@ def graph_decoder_layer(dec_input,
 
     # (batch_size, tgt_len, emb_dim)
     hier_attn_output = multi_head_hierarchical_attention(
-        layer_id=layer_id,
-        attention_weights_array=attention_weights_array,
         queries=pre_process_layer(out=slf_attn_output,  # add layer normalization
                                   process_cmd=preprocess_cmd,
                                   dropout_rate=prepostprocess_dropout,
@@ -331,7 +327,6 @@ def graph_decoder(dec_input,
                   attention_dropout,
                   relu_dropout,
                   hidden_act,
-                  attention_weights_array,
                   preprocess_cmd,
                   postprocess_cmd,
                   caches=None,
@@ -349,13 +344,10 @@ def graph_decoder(dec_input,
     :param graph_attn_bias:  (batch_size, n_head, n_blocks, n_blocks)
     :return:
     """
-    layer_id = layers.fill_constant(
-        shape=[1], dtype="int64", value=0, force_cpu=True)
+
     for i in range(n_layer):
         # (batch_size, tgt_len, emb_dim)
         dec_output = graph_decoder_layer(
-            layer_id=layer_id,
-            attention_weights_array=attention_weights_array,
             dec_input=dec_input,
             enc_words_output=enc_words_output,
             enc_sents_output=enc_sents_output,
@@ -380,7 +372,6 @@ def graph_decoder(dec_input,
             param_initializer=param_initializer,
             name=name + '_layer_' + str(i)
         )
-        layers.increment(x=layer_id, value=1.0, in_place=True)
         dec_input = dec_output
 
     # add layer normalization

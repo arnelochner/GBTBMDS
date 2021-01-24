@@ -307,7 +307,7 @@ class GraphSumModel(object):
 
         return enc_words_out, enc_sents_out
 
-    def decode(self, dec_input, enc_words_output, enc_sents_output, attention_weights_array=None, caches=None, gather_idx=None):
+    def decode(self, dec_input, enc_words_output, enc_sents_output, caches=None, gather_idx=None):
         """Decoding to generate output text"""
 
         trg_word, trg_pos, trg_slf_attn_bias, trg_src_words_attn_bias, \
@@ -351,7 +351,6 @@ class GraphSumModel(object):
             param_initializer=self._param_initializer,
             caches=caches,
             gather_idx=gather_idx,
-            attention_weights_array=attention_weights_array,
             name='graph_decoder')
 
         # Reshape to 2D tensor to use GEMM instead of BatchedGEMM
@@ -563,7 +562,6 @@ class GraphSumModel(object):
 
         def beam_search():
             """Beam search function"""
-            test_liste = []
             max_len = layers.fill_constant(
                 shape=[1], dtype=start_tokens.dtype, value=self.max_out_len, force_cpu=True)
 
@@ -589,14 +587,6 @@ class GraphSumModel(object):
             # and static encoder output projections in encoder-decoder attention
             # to reduce redundant computation.
 
-            # Padding Helpers which are used to being able to concatinate the tensors of all steps, where the shapes can be different
-            padding_helper = layers.fill_constant_batch_size_like(dtype="float64", value=0,
-                                                                  input=start_tokens, shape=[-1, self.beam_size, 1, self._dec_n_layer, self._n_head, self.max_para_num])
-
-            parent_padding_helper = layers.fill_constant_batch_size_like(dtype="float64", value=0,
-                                                                         input=start_tokens, shape=[-1, self.beam_size, 1])
-            scores_padding_helper = layers.fill_constant_batch_size_like(dtype="float64", value=0,
-                                                                         input=start_tokens, shape=[-1, self.beam_size, 1])
             caches = [
                 {
                     "k":  # for self attention
@@ -627,19 +617,6 @@ class GraphSumModel(object):
             trigram_blocking = TrigramBlocking(start_tokens, self.tokenizer,
                                                use_fp16=self._use_fp16, beam_size=self.beam_size)
 
-            # Array where for each step_id the attention_weights from the global graph decoder attention is stored.
-            attention_weights_array_token = layers.create_array(
-                dtype="float64")
-
-            # Array where for a single step_id the attention_weighst are stored.
-            attention_weights_array = layers.create_array(dtype="float64")
-
-            # Array where for each step_id the parent_id information for each beam of each example is stored. Used to recreate beams in post-processing script
-            parrent_idx_array = layers.create_array(dtype="int64")
-
-            # Array where for each step_id the score values for each beam of each example is stored.
-            scores_array = layers.create_array(dtype="float64")
-
             with while_op.block():
 
                 pre_ids = layers.array_read(array=ids, i=step_idx)
@@ -648,7 +625,6 @@ class GraphSumModel(object):
                 # inplace reshape here which actually change the shape of pre_ids.
                 # pre_ids = layers.reshape(pre_ids, (-1, 1, 1), inplace=True)
                 pre_scores = layers.array_read(array=scores, i=step_idx)
-                layers.Print(pre_scores, message="pre_scores")
                 # gather cell states corresponding to selected parent
                 pre_src_words_attn_bias = layers.gather(
                     tgt_src_words_attn_bias, index=parent_idx)
@@ -670,8 +646,7 @@ class GraphSumModel(object):
                                      enc_words_output=enc_words_output,
                                      enc_sents_output=enc_sents_output,
                                      caches=caches,
-                                     gather_idx=parent_idx,
-                                     attention_weights_array=attention_weights_array)
+                                     gather_idx=parent_idx)
 
                 # prevent generating end token if length less than min_out_len
                 eos_index = layers.fill_constant(shape=[layers.shape(logits)[0]],
@@ -738,126 +713,6 @@ class GraphSumModel(object):
                     end_id=self.eos_idx,
                     return_parent_idx=True)
 
-                # Check if current step_id is the first iteration. In this case there exists only 1 beam for each example. This must be considered for reshaping / padding.
-                first_iter = layers.expand(layers.unsqueeze(
-                    layers.fill_constant(shape=[1], value=0, dtype="int64"), axes=[0]), expand_times=[layers.shape(curr_scores)[0], 1])
-
-                # Step_idx_vector used for IfElse Layer.
-                # Shape = [#active_examples]
-                step_idx_vector = layers.expand(layers.unsqueeze(
-                    step_idx, axes=[0]), expand_times=[layers.shape(curr_scores)[0], 1])
-
-                # IfElse Condition
-                if_cond = layers.equal(step_idx_vector, first_iter)
-                ie = layers.IfElse(if_cond)
-
-                test_tensor = layers.create_tensor(dtype="float64")
-                concated_tensor = layers.create_tensor(dtype="float64")
-
-                # Read Attention Weights from first decoding_layer
-                attention_weights_first_decoding_layer = layers.array_read(
-                    attention_weights_array, layers.fill_constant(shape=[1], value=0, dtype="int64"))
-                attention_weights_first_decoding_layer = layers.reshape(
-                    attention_weights_first_decoding_layer, shape=[-1, 1, 1, 1, self._n_head, self.max_para_num])
-
-                # Buffer Variable to store parent_idx of step
-                current_parent_idx = layers.create_tensor(dtype="int64")
-
-                # Reshape Parent_Idx based on step_idx
-                with ie.true_block():
-                    local_parent_idx = ie.input(parent_idx)
-                    local_parent_idx = layers.reshape(
-                        local_parent_idx, shape=[-1, 1, 1])
-                    # Expand 'local_parent_idx' for first step, becuase only 1 beam is active
-                    local_parent_idx = layers.expand(
-                        local_parent_idx, expand_times=[1, self.beam_size, 1])
-
-                    layers.assign(local_parent_idx, current_parent_idx)
-                    ie.output(current_parent_idx)
-
-                with ie.false_block():
-                    local_parent_idx = ie.input(parent_idx)
-                    local_parent_idx = layers.reshape(
-                        local_parent_idx, shape=[-1, self.beam_size, 1])
-
-                    layers.assign(local_parent_idx, current_parent_idx)
-                    ie.output(current_parent_idx)
-
-                # Reshaping Attention Weights from first decoding_layer and assign to 'concated_tensor' where the weights from all weights are concatinated.
-                with ie.true_block():
-                    reshaped_layer_i = ie.input(
-                        attention_weights_first_decoding_layer)
-
-                    # Expand 'reshaped_layer_i' for first step, becuase only 1 beam is active
-                    reshaped_layer_i = layers.expand(
-                        reshaped_layer_i, expand_times=[1, self.beam_size, 1, 1, 1, 1])
-
-                    layers.assign(reshaped_layer_i, concated_tensor)
-                    ie.output(concated_tensor)
-                with ie.false_block():
-                    reshaped_layer_i = ie.input(
-                        attention_weights_first_decoding_layer)
-                    reshaped_layer_i = layers.reshape(
-                        reshaped_layer_i, shape=[-1, self.beam_size, 1, 1, self._n_head, self.max_para_num])
-
-                    layers.assign(reshaped_layer_i, concated_tensor)
-                    ie.output(concated_tensor)
-
-                # Iterate over all Decoding Layers except the first one and concatinate them.
-                for i in range(1, self._dec_n_layer):
-
-                    # Read Attention Weights of Layer i from 'attention_weights_array'
-                    layer_i = layers.array_read(
-                        attention_weights_array, layers.fill_constant(shape=[1], value=i, dtype="int64"))
-
-                    input_i = layers.reshape(
-                        layer_i, shape=[-1, 1, 1, 1, self._n_head, self.max_para_num])
-
-                    # Check if first step_idx
-                    with ie.true_block():
-                        reshaped_layer_i = ie.input(input_i)
-                        # Expand 'reshaped_layer_i' for first step, becuase only 1 beam is active
-                        reshaped_layer_i = layers.expand(
-                            reshaped_layer_i, expand_times=[1, self.beam_size, 1, 1, 1, 1])
-
-                        layers.assign(reshaped_layer_i, test_tensor)
-                        ie.output(reshaped_layer_i)
-                    with ie.false_block():
-                        reshaped_layer_i = ie.input(input_i)
-
-                        reshaped_layer_i = ie.input(input_i)
-
-                        reshaped_layer_i = layers.reshape(
-                            reshaped_layer_i, shape=[-1, self.beam_size, 1, 1, self._n_head, self.max_para_num])
-
-                        layers.assign(reshaped_layer_i, test_tensor)
-                        ie.output(reshaped_layer_i)
-
-                    # Concat Attention Weights of current decoding layer to the already existing tensor
-                    concated_tensor = layers.concat(
-                        input=[concated_tensor, test_tensor], axis=3)
-
-                # After current step_idx write 'concated_tensor' to 'attention_weights_array_token'
-                layers.array_write(
-                    concated_tensor, step_idx, attention_weights_array_token)
-
-                # After current step_idx write 'current_parent_idx' to 'parrent_idx_array'
-                layers.array_write(current_parent_idx,
-                                   step_idx, parrent_idx_array)
-
-                # Convert Pre_scores, which is a LoD_Tensor to a Tensor by adding a constant.
-                tmp = layers.fill_constant(
-                    shape=[1], value=0, dtype="float32")
-                pre_scores_tmp_tensor = layers.elementwise_add(tmp, pre_scores)
-
-                # Reshape 'pre_scores_tmp_tensor' with shape [#active_examples*beam_size] to [#active_examples,beam_size,1]
-                reshaped_pre_scores_tmp_tensor = layers.reshape(
-                    pre_scores_tmp_tensor, shape=[-1, self.beam_size, 1])
-
-                # Store scores for current step_idx
-                layers.array_write(
-                    reshaped_pre_scores_tmp_tensor, step_idx, scores_array)
-
                 layers.increment(x=step_idx, value=1.0, in_place=True)
 
                 layers.increment(x=step_next_idx, value=1.0, in_place=True)
@@ -880,91 +735,14 @@ class GraphSumModel(object):
             finished_ids, finished_scores = layers.beam_search_decode(
                 ids, scores, beam_size=self.beam_size, end_id=self.eos_idx)
 
-            # Create condition to concatinate arrays for all step_idx
-            cond = layers.greater_than(step_idx, layers.fill_constant(
-                shape=[1], value=0, dtype="int64"))
-            while_oper = layers.While(cond)
-            # Retrieve maximum step_idx
-            number_steps = layers.assign(step_idx)
+            return finished_ids, finished_scores
 
-            # Tensor where the concatinated vectors are stored
-            weight_tensor = layers.create_tensor(dtype="float64")
-            scores_tensor = layers.create_tensor(dtype="float64")
-            parent_idx_tensor = layers.create_tensor(dtype="int64")
-
-            # Read first Tensors from arrays and store them into tmp-variables
-            tmp = layers.array_read(
-                attention_weights_array_token, layers.fill_constant(shape=[1], dtype="int64", value=0))
-
-            parent_tmp = layers.array_read(
-                parrent_idx_array, layers.fill_constant(shape=[1], dtype="int64", value=0))
-
-            scores_tmp = layers.array_read(
-                scores_array, layers.fill_constant(shape=[1], dtype="int64", value=0))
-
-            # Padd those tmp variable and store them into the result tensors
-            layers.assign(
-                layers.pad_constant_like(padding_helper, tmp, pad_value=-1), weight_tensor)
-
-            layers.assign(
-                layers.pad_constant_like(parent_padding_helper, parent_tmp, pad_value=-1), parent_idx_tensor)
-
-            layers.assign(
-                layers.pad_constant_like(scores_padding_helper, scores_tmp, pad_value=-1), scores_tensor)
-
-            layers.increment(step_idx, value=-1, in_place=True)
-
-            # Concatinate arrays for each step_idx
-            with while_oper.block():
-
-                index = layers.elementwise_sub(number_steps, step_idx)
-
-                token_i = layers.array_read(
-                    attention_weights_array_token, index)
-
-                parent_idx_i = layers.array_read(
-                    parrent_idx_array, index)
-
-                scores_i = layers.array_read(
-                    scores_array, index)
-
-                layers.increment(step_idx, value=-1, in_place=True)
-
-                padded_var = layers.pad_constant_like(
-                    padding_helper, token_i, pad_value=-1)
-
-                padded_parent_idx = layers.pad_constant_like(
-                    parent_padding_helper, parent_idx_i, pad_value=-1)
-
-                padded_scores = layers.pad_constant_like(
-                    scores_padding_helper, scores_i, pad_value=-1)
-
-                res = layers.concat(
-                    [weight_tensor, padded_var], axis=2)
-
-                parent_res = layers.concat(
-                    [parent_idx_tensor, padded_parent_idx], axis=2)
-
-                scores_res = layers.concat(
-                    [scores_tensor, padded_scores], axis=2)
-
-                layers.assign(parent_res, parent_idx_tensor)
-                layers.assign(scores_res, scores_tensor)
-                layers.assign(res, weight_tensor)
-                layers.greater_than(step_idx, layers.fill_constant(
-                    shape=[1], value=0, dtype="int64"), cond)
-
-            return finished_ids, finished_scores, weight_tensor, parent_idx_tensor, scores_tensor
-
-        finished_ids, finished_scores, weight_tensor, parent_idx_tensor, scores_tensor = beam_search()
+        finished_ids, finished_scores = beam_search()
 
         graph_vars = {
             "finished_ids": finished_ids,
             "finished_scores": finished_scores,
             "data_ids": data_ids,
-            "weight_array": weight_tensor,
-            "parent_idx": parent_idx_tensor,
-            "scores_tensor": scores_tensor
         }
 
         for k, v in graph_vars.items():
