@@ -229,7 +229,7 @@ class GraphSumReader(object):
             if to_append:
                 batch_records.append(record)
             else:
-                yield self._pad_batch_records(batch_records, do_dec, place, phase)
+                yield self._pad_batch_records(batch_records, do_dec, place)
                 batch_records, max_len = [record], len(record.tgt_ids)
             index += 1
 
@@ -308,11 +308,11 @@ class GraphSumReader(object):
 
         return wrapper
 
-    def _pad_batch_records(self, batch_records, do_dec, place, phase):
+    def _pad_batch_records(self, batch_records, do_dec, place):
         """Pad data to batch"""
 
         if do_dec:
-            return self._prepare_infer_input(batch_records, place=place, phase=phase)
+            return self._prepare_infer_input(batch_records, place=place)
         else:
             return self._prepare_train_input(batch_records)
 
@@ -326,7 +326,7 @@ class GraphSumReader(object):
                 graphs=[inst.graph for inst in insts])
 
         batch_number_of_textual_units = self._pad_number_of_textual_units(
-            insts=[inst.number_of_textual_units for inst in insts], phase="train")
+            insts=[inst.number_of_textual_units for inst in insts], do_dec=False)
 
         trg_word, trg_pos, trg_slf_attn_bias = self._pad_tgt_batch_data(
             insts=[inst.tgt_ids for inst in insts])
@@ -342,16 +342,16 @@ class GraphSumReader(object):
 
         return data_inputs
 
-    def _pad_number_of_textual_units(self, insts, phase):
+    def _pad_number_of_textual_units(self, insts, do_dec):
 
-        if phase in ["valid", "test"]:
+        if do_dec:
             max_length = self.max_number_of_docs["do_dec"]
         else:
             max_length = self.max_number_of_docs["train"]
 
         return [inst + [0] * (max_length - len(inst)) for inst in insts]
 
-    def _prepare_infer_input(self, insts, place, phase):
+    def _prepare_infer_input(self, insts, place):
         """
         Put all padded data needed by beam search decoder into a list.
         """
@@ -361,7 +361,7 @@ class GraphSumReader(object):
                 graphs=[inst.graph for inst in insts])
 
         batch_number_of_textual_units = self._pad_number_of_textual_units(
-            insts=[inst.number_of_textual_units for inst in insts], phase=phase)
+            insts=[inst.number_of_textual_units for inst in insts], do_dec=True)
 
         # start tokens
         trg_word = np.asarray([[self.bos_idx]] * len(insts), dtype="int64")
