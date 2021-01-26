@@ -80,7 +80,7 @@ def histo_3d_simple(decoded_weight_matrix, decoded_score_matrix, number_of_textu
     ax.set_zlim3d(0, z_max_lim)
 
     text_units = number_of_textual_units[example]
-    text_units = np.cumsum(text_units[text_units != 0])
+    text_units = np.cumsum(text_units[text_units != 0]) + 1
     # ax.set_xticks(list(range(number_paragraphs+2)))
     ax.set_xticks(text_units)
     ax.set_xticklabels(
