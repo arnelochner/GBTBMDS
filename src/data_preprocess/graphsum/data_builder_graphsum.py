@@ -130,21 +130,31 @@ def format_to_paddle(args):
     else:
         datasets = ['test']
     text = "_sentence" if args.sentence_level else "_paragraph"
+
+    maximal_number_textual_units_dict = dict()
     for corpus_type in datasets:
         a_lst = []
         for json_f in glob.glob(pjoin(args.json_path, '*' + corpus_type + '.*.json')):
             real_name = json_f.split('/')[-1]
 
             a_lst.append((json_f, args, pjoin(args.data_path + text, corpus_type,
-                                              "MultiNews." +  
+                                              "MultiNews." +
                                               str(args.max_nsents)
                                               + "." + real_name)))
 
         pool = NoDaemonProcessPool(args.n_cpus)
+        number_of_docs = []
         for d in pool.imap_unordered(_format_to_paddle, a_lst):
-            pass
+            number_of_docs.append(d)
+        maximal_number_textual_units_dict[corpus_type] = int(
+            np.max(number_of_docs))
         pool.close()
         pool.join()
+    save_path = pjoin(args.data_path + text,
+                      "maximal_number_textual_units")
+    with open(save_path, 'w') as save:
+        save.write(json.dumps(
+            maximal_number_textual_units_dict, ensure_ascii=False))
 
 
 def _format_to_paddle(params):
@@ -173,10 +183,10 @@ def _format_to_paddle(params):
         if b_data is None:
             continue
 
-        src_token_ids, tgt_token_ids, src_tokens, src_txt, tgt_txt, sen_num, word_num = \
+        src_token_ids, tgt_token_ids, src_tokens, src_txt, tgt_txt, sen_num, word_num, number_of_textual_units = \
             b_data.src_token_ids, b_data.tgt_token_ids, b_data.src_filtered, \
             b_data.original_src_txt, b_data.tgt_txt, b_data.src_filtered_len, \
-            b_data.total_words_short
+            b_data.total_words_short, b_data.number_of_textual_units
 
         total_sens += sen_num
         total_words += word_num
@@ -203,7 +213,7 @@ def _format_to_paddle(params):
 
         b_data_dict = {"src": src_token_ids, "tgt": tgt_token_ids,
                        'src_str': src_txt, "tgt_str": tgt_txt,
-                       'sim_graph': sim_graph}
+                       'sim_graph': sim_graph, "number_of_textual_units": number_of_textual_units}
         datasets.append(b_data_dict)
 
     print('Saving to %s' % save_file)
@@ -216,8 +226,9 @@ def _format_to_paddle(params):
     os.makedirs(os.path.dirname(save_file), exist_ok=True)
     with open(save_file, 'w') as save:
         save.write(json.dumps(datasets, ensure_ascii=False))
-    datasets = []
     gc.collect()
+    print([len(example["number_of_textual_units"]) for example in datasets])
+    return np.max([len(example["number_of_textual_units"]) for example in datasets])
 
 
 def construct_tfidf_sim_graph(sents, args):
@@ -582,10 +593,12 @@ class SummData(object):
               (docs_num, total_sens, total_words))
 
         # truncate long documents, combine lead sentences of each document
+        number_of_textual_units = list(range(docs_num))
         if total_sens > self.args.max_nsents:
             docs_filtered = _filter_and_combine_docs(docs, list(
-                range(docs_num)), self.args.max_nsents, docs_num)
+                range(docs_num)), self.args.max_nsents, docs_num, number_of_textual_units)
         else:
+            number_of_textual_units = [len(doc) for doc in docs]
             docs_filtered = docs
 
         src_filtered = []
@@ -620,23 +633,26 @@ class SummData(object):
 
         res = namedtuple('result', ['src_token_ids', 'tgt_token_ids', 'src_filtered',
                                     'original_src_txt', 'tgt_txt', 'src_filtered_len',
-                                    'total_words_short'])
+                                    'total_words_short', 'number_of_textual_units'])
 
         return res(src_token_ids=src_token_ids, tgt_token_ids=tgt_token_ids,
                    src_filtered=src_filtered, original_src_txt=original_src_txt,
                    tgt_txt=tgt_txt, src_filtered_len=len(src_filtered_short),
-                   total_words_short=total_words_short)
+                   total_words_short=total_words_short, number_of_textual_units=number_of_textual_units)
 
 
-def _filter_and_combine_docs(docs, cur_doc_ids, total_sents, cur_num):
+def _filter_and_combine_docs(docs, cur_doc_ids, total_sents, cur_num, textual_unit_lengths):
     """Combine lead num of tokens from each document to get multi-document input"""
     avg = total_sents // cur_num
     exceed_doc_ids = [i for i in cur_doc_ids if len(docs[i]) > avg]
     if len(exceed_doc_ids) == cur_num:
+        for i in exceed_doc_ids:
+            textual_unit_lengths[i] = avg
         return [doc[:avg] for doc in docs]
 
     for i in cur_doc_ids:
         if i not in exceed_doc_ids:
             total_sents -= len(docs[i])
+            textual_unit_lengths[i] = len(docs[i])
 
-    return _filter_and_combine_docs(docs, exceed_doc_ids, total_sents, len(exceed_doc_ids))
+    return _filter_and_combine_docs(docs, exceed_doc_ids, total_sents, len(exceed_doc_ids), textual_unit_lengths)

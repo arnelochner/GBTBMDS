@@ -100,7 +100,8 @@ def main(args):
         bos_idx=symbols['BOS'],
         eos_idx=symbols['EOS'],
         pad_idx=symbols['PAD'],
-        n_head=model_config['num_attention_heads'])
+        n_head=model_config['num_attention_heads'],
+        max_number_of_docs=graphsum.max_number_of_docs)
 
     if not (args.do_train or args.do_val or args.do_test):
         raise ValueError("For args `do_train`, `do_val` and `do_test`, at "
@@ -142,7 +143,7 @@ def main(args):
         with fluid.program_guard(train_program, startup_prog):
             with fluid.unique_name.guard():
                 train_pyreader, graph_vars = graphsum.create_model(
-                    pyreader_name=get_random_string(20))
+                    pyreader_name=get_random_string(20), corpus_type="train")
                 scheduled_lr, _ = optimization(
                     loss=graph_vars["loss"],
                     warmup_steps=warmup_steps,
@@ -528,6 +529,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
             graph_vars["finished_ids"].name,
             graph_vars["finished_scores"].name,
             graph_vars["data_ids"].name,
+            graph_vars["number_of_textual_units"].name,
             graph_vars["weight_array"],
             graph_vars["parent_idx"].name,
             graph_vars["scores_tensor"].name,
@@ -568,7 +570,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 acc += total_acc
                 steps += 1
             else:
-                seq_ids, seq_scores, data_ids, weights, parent_idx, scores_tensor = outputs
+                seq_ids, seq_scores, data_ids, number_of_textual_units, weights, parent_idx, scores_tensor = outputs
                 # seq_ids, seq_scores, data_ids = outputs
 
                 weights = np.array(weights)
@@ -700,6 +702,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 save_dict = {
                     "longest_beam_array": longest_beam_array,
                     "summary_beam_list": summary_beam_list,
+                    "number_of_textual_units": np.array(number_of_textual_units),
                     "scores_array": scores_array,
                     "token_beam_array": token_beam_array
                 }
