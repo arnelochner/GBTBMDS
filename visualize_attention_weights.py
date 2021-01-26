@@ -46,7 +46,7 @@ def histo_3d_multi(decoded_weight_matrix, decoded_score_matrix, longest_beam_arr
     plt.show()
 
 
-def histo_3d_simple(decoded_weight_matrix, decoded_score_matrix, longest_beam_array, decoding_layer=0, example=0):
+def histo_3d_simple(decoded_weight_matrix, decoded_score_matrix, number_of_textual_units, longest_beam_array, decoding_layer=0, example=0):
     fig = plt.figure()
     ax = fig.gca(projection='3d')
 
@@ -72,11 +72,18 @@ def histo_3d_simple(decoded_weight_matrix, decoded_score_matrix, longest_beam_ar
     poly.set_alpha(0.7)
     ax.add_collection3d(poly, zs=zs, zdir='y')
 
-    ax.set_xlabel('Paragraph')
+    ax.set_xlabel('Document End')
     ax.set_xlim3d(0, number_paragraphs)
     ax.set_ylabel('step')
     ax.set_ylim3d(0, number_steps)
     ax.set_zlabel('Attentiomn')
     ax.set_zlim3d(0, z_max_lim)
+
+    text_units = number_of_textual_units[example]
+    text_units = np.cumsum(text_units[text_units != 0])
+    # ax.set_xticks(list(range(number_paragraphs+2)))
+    ax.set_xticks(text_units)
+    ax.set_xticklabels(
+        range(1, len(text_units)+1))
 
     plt.show()
