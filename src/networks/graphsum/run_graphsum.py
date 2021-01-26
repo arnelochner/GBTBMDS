@@ -608,7 +608,9 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
 
                 longest_beam_array = np.zeros(shape=weights.shape[:1])
 
-                token_beam_array = np.zeros(
+                beam_length_array = np.zeros(shape=weights.shape[:2])
+
+                token_beam_array = -np.ones(
                     shape=weights.shape[:3])
 
                 summary_beam_list = []
@@ -655,6 +657,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                             score = np.array(seq_scores)[sub_end - 1]
                             print(f"Score {score}")
 
+                        beam_length_array[data_id, :] = length_list
                         max_beam_length = np.max(length_list)
 
                         longest_beam_array[data_id
@@ -678,7 +681,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                                 replace('<T>', '').replace(
                                 '<PAD>', '').replace('⁇', '"')
                             hyp_str = re.sub('\\s+', ' ', hyp_str)
-                            print(hyp_str)
+                            # print(hyp_str)
 
                             summary_beam_list.append(hyp_str)
 
@@ -704,8 +707,8 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                     "summary_beam_list": summary_beam_list,
                     "number_of_textual_units": np.array(number_of_textual_units),
                     "scores_array": scores_array,
-                    "token_beam_array": token_beam_array
-                }
+                    "token_beam_array": token_beam_array,
+                    "beam_length": beam_length_array}
 
                 with open("save_dict", "wb") as handle:
                     pickle.dump(save_dict, handle)
