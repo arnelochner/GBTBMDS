@@ -114,7 +114,7 @@ class GraphSumModel(object):
     def _load_meta_information(self):
 
         tmp = json.load(
-            open(os.path.dirname(self.args.train_set) + "maximal_number_textual_units"))
+            open(os.path.dirname(self.args.train_set) + "/maximal_number_textual_units"))
         self.max_number_of_docs = {
             "train": tmp["train"], "do_dec": max(tmp["test"], tmp["valid"])}
 
@@ -446,7 +446,7 @@ class GraphSumModel(object):
         """Create the network"""
 
         if is_prediction:
-            return self.fast_decode(pyreader_name, corpus_type)
+            return self.fast_decode(pyreader_name)
 
         pyreader = fluid.layers.py_reader(
             capacity=50,
@@ -537,8 +537,8 @@ class GraphSumModel(object):
                     [-1, 1],  # data_ids
                     [-1, self.max_number_of_docs["do_dec"]]],  # Maximum number of Documents
             dtypes=['int64', 'int64', 'int64', 'float32', 'float32', 'float32',
-                    'int64', 'float32', 'int64', 'int64'],
-            lod_levels=[0, 0, 0, 0, 0, 0, 2, 2, 0, 0],
+                    'int64', 'float32', 'int64', 'int64', 'int64'],
+            lod_levels=[0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0],
             name=pyreader_name,
             use_double_buffer=True)
 
