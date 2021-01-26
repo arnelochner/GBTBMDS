@@ -43,7 +43,6 @@ def str2bool(v):
 
 
 if __name__ == '__main__':
-    #__spec__ = "ModuleSpec(name='builtins', loader=<class '_frozen_importlib.BuiltinImporter'>)"
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-mode", default='', type=str,
@@ -66,7 +65,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "-test_tgt", default='E:/graphsum/data/mutli-news-processed/test.txt.tgt')
 
-    parser.add_argument("-num_examples", default=1, type=int)
+    parser.add_argument("-num_examples", default=None, type=int)
     parser.add_argument("-shard_size", default=4000, type=int)
     parser.add_argument('-min_nsents', default=3, type=int)
     parser.add_argument('-max_nsents', default=30, type=int)
