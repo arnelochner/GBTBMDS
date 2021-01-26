@@ -114,7 +114,7 @@ class GraphSumModel(object):
     def _load_meta_information(self):
 
         tmp = json.load(
-            open(os.path.dirname(self.args.train_set)))
+            open(os.path.dirname(self.args.train_set) + "maximal_number_textual_units"))
         self.max_number_of_docs = {
             "train": tmp["train"], "do_dec": max(tmp["test"], tmp["valid"])}
 
