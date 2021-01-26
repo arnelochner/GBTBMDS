@@ -534,8 +534,7 @@ class GraphSumModel(object):
                     [-1, 1],  # init_scores
                     [-1],  # parent_idx
                     [-1, 1],  # data_ids
-                    # Maximum number of Documents
-                    [-1, self.max_number_of_docs["do_dec"]],
+                    [-1, self.max_number_of_docs["do_dec"]]],  # Maximum number of Documents
             dtypes=['int64', 'int64', 'int64', 'float32', 'float32', 'float32',
                     'int64', 'float32', 'int64', 'int64'],
             lod_levels=[0, 0, 0, 0, 0, 0, 2, 2, 0, 0],
