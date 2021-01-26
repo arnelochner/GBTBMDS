@@ -64,9 +64,12 @@ def format_to_json(args):
 
     for corpus_type in datasets:
         src_files = codecs.open(
-            corpora_files[corpus_type][0], 'r', 'utf-8').readlines()[:args.num_examples]
+            corpora_files[corpus_type][0], 'r', 'utf-8').readlines()
         tgt_files = codecs.open(
-            corpora_files[corpus_type][1], 'r', 'utf-8').readlines()[:args.num_examples]
+            corpora_files[corpus_type][1], 'r', 'utf-8').readlines()
+        if args.num_examples:
+            src_files = src_files[:args.num_examples]
+            tgt_files = tgt_files[:args.num_examples]
         assert len(src_files) == len(
             tgt_files), "the number of src files is not equal with tgt files!"
 
@@ -125,10 +128,10 @@ def _format_to_json(params):
 def format_to_paddle(args):
     """Constuct dataset for paddle models"""
 
-    if args.dataset != '':
+    datasets = ["test", "train", "valid"]
+
+    if args.dataset != "":
         datasets = [args.dataset]
-    else:
-        datasets = ['test']
     text = "_sentence" if args.sentence_level else "_paragraph"
     for corpus_type in datasets:
         a_lst = []
@@ -136,7 +139,7 @@ def format_to_paddle(args):
             real_name = json_f.split('/')[-1]
 
             a_lst.append((json_f, args, pjoin(args.data_path + text, corpus_type,
-                                              "MultiNews." +  
+                                              "MultiNews." +
                                               str(args.max_nsents)
                                               + "." + real_name)))
 
