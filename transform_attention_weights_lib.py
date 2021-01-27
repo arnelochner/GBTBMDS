@@ -253,4 +253,55 @@ def transform_attention_weights(attention_weights, parent_idx, scores, result_di
     decoded_weight_matrix, decoded_score_matrix = transform_attention_weights_decoder(
         attention_weights_matrix, scores_matrix, parent_idx_matrix, result_dict["longest_beam_array"]-1)
 
-    return decoded_weight_matrix, decoded_score_matrix
+    sorted_weight_matrix, sorted_score_matrix = sort_matrixes(
+        decoded_weight_matrix, decoded_score_matrix, result_dict["longest_beam_array"]-1)
+
+    cleaned_weight_matrix, cleaned_score_matrix = cleanup_matrix(sorted_weight_matrix, sorted_score_matrix,
+                                                                 result_dict["beam_length"])
+
+    return cleaned_weight_matrix, cleaned_score_matrix
+
+
+def sort_matrixes(decoded_weight_matrix, decoded_score_matrix, longest_beam_array):
+
+    num_examples, num_beams, _ = decoded_score_matrix.shape
+
+    sort_information = np.argsort(
+        -decoded_score_matrix[range(0, num_examples), :, longest_beam_array.astype("int")])
+
+    sorted_score_matrix = decoded_score_matrix[np.repeat(np.array(list(
+        range(0, num_examples)))[:, np.newaxis], num_beams, axis=1), sort_information, :]
+
+    sorted_weight_matrix = decoded_weight_matrix[np.repeat(np.array(list(range(
+        0, num_examples)))[:, np.newaxis], num_beams, axis=1), sort_information, :, :, :, :]
+
+    return sorted_weight_matrix, sorted_score_matrix
+
+
+def cleanup_matrix(sorted_weight_matrix, sorted_score_matrix, beam_length):
+
+    num_examples, num_beams, num_steps = sorted_score_matrix.shape
+
+    def create_index_information(x):
+        return [list(range(int(i), num_steps)) for i in x]
+
+    example_index = np.repeat(list(range(0, num_examples)), np.sum(
+        num_steps - beam_length, axis=1).astype("int"))
+
+    indexs = list(map(create_index_information, beam_length))
+
+    value_indexs = [
+        index for elem in indexs for beam in elem for index in beam]
+
+    beam_index = np.repeat(np.tile(list(range(0, num_beams)), num_examples),
+                           (num_steps - beam_length).astype("int").reshape(-1,))
+
+    cleaned_score_matrix = sorted_score_matrix.copy()
+
+    cleaned_weight_matrix = sorted_weight_matrix.copy()
+
+    cleaned_score_matrix[example_index, beam_index, value_indexs] = 0
+
+    cleaned_weight_matrix[example_index, beam_index, value_indexs, :, :, :] = 0
+
+    return cleaned_weight_matrix, cleaned_score_matrix
