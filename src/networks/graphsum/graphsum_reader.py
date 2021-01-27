@@ -26,9 +26,9 @@ class GraphSumReader(object):
     """GraphSum data reader"""
 
     def __init__(self, max_para_num=30, max_para_len=60, max_tgt_len=150,
-                max_examples_per_file=None,
+                 max_examples_per_file=None,
                  graph_type="similarity", in_tokens=False, random_seed=None,
-                 bos_idx=0, eos_idx=1, pad_idx=2, n_head=8):
+                 bos_idx=0, eos_idx=1, pad_idx=2, n_head=8, max_number_of_docs=None):
 
         self.max_para_num = max_para_num
         self.max_para_len = max_para_len
@@ -37,6 +37,8 @@ class GraphSumReader(object):
         self.graph_type = graph_type
         self.in_tokens = in_tokens
         self.n_head = n_head
+
+        self.max_number_of_docs = max_number_of_docs
 
         self.bos_idx = bos_idx
         self.eos_idx = eos_idx
@@ -67,7 +69,7 @@ class GraphSumReader(object):
         """
 
         def _dataset_loader(pt_file):
-            dataset = json.load(open(pt_file,encoding="utf-8"))
+            dataset = json.load(open(pt_file, encoding="utf-8"))
             if self.max_examples_per_file:
                 dataset = dataset[:self.max_examples_per_file]
             logger.info('Loading dataset from %s, number of examples: %d' %
@@ -83,7 +85,7 @@ class GraphSumReader(object):
             datasets = []
             for pt in pts:
                 datasets.extend(_dataset_loader(pt))
-            return datasets 
+            return datasets
         else:
             # Only one inputters.*Dataset, simple!
             pts = sorted(glob.glob(data_path + '/*.json'))
@@ -131,11 +133,11 @@ class GraphSumReader(object):
         num_examples = 0
         print(data_path)
         dataset_loader = self.lazy_load_dataset(data_path)
-        
+
         for dataset in dataset_loader:
             num_examples += len(dataset)
         self.num_examples = num_examples
-        
+
         return self.num_examples
 
     def get_train_progress(self):
@@ -147,9 +149,11 @@ class GraphSumReader(object):
         """Reads json dict file."""
         data_id = 0
         reader = self.load_dataset(data_path, shuffle)
-        Example = namedtuple('Example', ["src", "tgt", "tgt_str", "graph", "data_id"])
+        Example = namedtuple(
+            'Example', ["src", "tgt", "tgt_str", "graph", "data_id", "number_of_textual_units"])
 
-        assert self.graph_type in ["similarity", "topic", "discourse"], "Non-valid graph type!"
+        assert self.graph_type in [
+            "similarity", "topic", "discourse"], "Non-valid graph type!"
 
         examples = []
         for ex in reader:
@@ -160,7 +164,7 @@ class GraphSumReader(object):
             else:
                 graph = ex['discourse_graph']
             examples.append(Example(src=ex['src'], tgt=ex['tgt'], tgt_str=ex['tgt_str'],
-                                    graph=graph, data_id=data_id))
+                                    graph=graph, data_id=data_id, number_of_textual_units=ex["number_of_textual_units"]))
             data_id += 1
 
         return examples
@@ -169,9 +173,11 @@ class GraphSumReader(object):
         """Reads json dict file."""
         data_id = 0
         reader = self.lazy_load_dataset(data_path, shuffle)
-        Example = namedtuple('Example', ["src", "tgt", "tgt_str", "graph", "data_id"])
+        Example = namedtuple('Example', [
+                             "src", "tgt", "tgt_str", "graph", "data_id", "number_of_textual_units"])
 
-        assert self.graph_type in ["similarity", "topic", "discourse"], "Non-valid graph type!"
+        assert self.graph_type in [
+            "similarity", "topic", "discourse"], "Non-valid graph type!"
 
         for dataset in reader:
             if shuffle:
@@ -185,7 +191,7 @@ class GraphSumReader(object):
                 else:
                     graph = ex['discourse_graph']
                 ex = Example(src=ex['src'], tgt=ex['tgt'], tgt_str=ex['tgt_str'],
-                             graph=graph, data_id=data_id)
+                             graph=graph, data_id=data_id, number_of_textual_units=ex["number_of_textual_units"])
                 data_id += 1
 
                 yield ex
@@ -200,8 +206,10 @@ class GraphSumReader(object):
         graph = example.graph[:self.max_para_num]
         graph = [sim[:self.max_para_num] for sim in graph]
 
-        Record = namedtuple('Record', ['src_ids', 'tgt_ids', 'label_ids', 'graph', 'data_id'])
-        record = Record(src, tgt[:-1], tgt[1:], graph, example.data_id)
+        Record = namedtuple(
+            'Record', ['src_ids', 'tgt_ids', 'label_ids', 'graph', 'data_id', "number_of_textual_units"])
+        record = Record(src, tgt[:-1], tgt[1:], graph,
+                        example.data_id, example.number_of_textual_units)
         return record
 
     def _prepare_batch_data(self, examples, batch_size, phase=None, do_dec=False, place=None):
@@ -313,9 +321,12 @@ class GraphSumReader(object):
         Put all padded data needed by training into a list.
         """
         src_word, src_word_pos, src_sent_pos, src_word_slf_attn_bias, \
-        src_sents_slf_attn_bias, graph_attn_bias = self._pad_src_batch_data(
-            insts=[inst.src_ids for inst in insts],
-            graphs=[inst.graph for inst in insts])
+            src_sents_slf_attn_bias, graph_attn_bias = self._pad_src_batch_data(
+                insts=[inst.src_ids for inst in insts],
+                graphs=[inst.graph for inst in insts])
+
+        batch_number_of_textual_units = self._pad_number_of_textual_units(
+            insts=[inst.number_of_textual_units for inst in insts], do_dec=False)
 
         trg_word, trg_pos, trg_slf_attn_bias = self._pad_tgt_batch_data(
             insts=[inst.tgt_ids for inst in insts])
@@ -326,19 +337,31 @@ class GraphSumReader(object):
         data_inputs = [
             src_word, src_word_pos, src_sent_pos, src_word_slf_attn_bias,
             src_sents_slf_attn_bias, graph_attn_bias, trg_word, trg_pos,
-            trg_slf_attn_bias, lbl_word, lbl_weight
+            trg_slf_attn_bias, lbl_word, lbl_weight, batch_number_of_textual_units
         ]
 
         return data_inputs
+
+    def _pad_number_of_textual_units(self, insts, do_dec):
+
+        if do_dec:
+            max_length = self.max_number_of_docs["do_dec"]
+        else:
+            max_length = self.max_number_of_docs["train"]
+
+        return [inst + [0] * (max_length - len(inst)) for inst in insts]
 
     def _prepare_infer_input(self, insts, place):
         """
         Put all padded data needed by beam search decoder into a list.
         """
         src_word, src_word_pos, src_sent_pos, src_word_slf_attn_bias, \
-        src_sents_slf_attn_bias, graph_attn_bias = self._pad_src_batch_data(
-            insts=[inst.src_ids for inst in insts],
-            graphs=[inst.graph for inst in insts])
+            src_sents_slf_attn_bias, graph_attn_bias = self._pad_src_batch_data(
+                insts=[inst.src_ids for inst in insts],
+                graphs=[inst.graph for inst in insts])
+
+        batch_number_of_textual_units = self._pad_number_of_textual_units(
+            insts=[inst.number_of_textual_units for inst in insts], do_dec=True)
 
         # start tokens
         trg_word = np.asarray([[self.bos_idx]] * len(insts), dtype="int64")
@@ -355,16 +378,18 @@ class GraphSumReader(object):
         init_score = to_lodtensor(
             np.zeros_like(trg_word, dtype="float32"),
             place, [range(trg_word.shape[0] + 1)] * 2)
-        trg_word = to_lodtensor(trg_word, place, [range(trg_word.shape[0] + 1)] * 2)
+        trg_word = to_lodtensor(
+            trg_word, place, [range(trg_word.shape[0] + 1)] * 2)
 
         init_idx = np.asarray(range(len(insts)), dtype="int32")
 
-        batch_data_ids = np.array([inst.data_id for inst in insts], dtype="int64").reshape([-1, 1])
+        batch_data_ids = np.array(
+            [inst.data_id for inst in insts], dtype="int64").reshape([-1, 1])
 
         data_inputs = [
             src_word, src_word_pos, src_sent_pos, src_word_slf_attn_bias,
             src_sents_slf_attn_bias, graph_attn_bias, trg_word, init_score,
-            init_idx, batch_data_ids
+            init_idx, batch_data_ids, batch_number_of_textual_units
         ]
         return data_inputs
 
@@ -401,7 +426,8 @@ class GraphSumReader(object):
         # (batch_size, max_nblock, max_ntoken)
         src_words_slf_attn_bias_data = np.array([[[0] * len(para) + [-1e18] * (self.max_para_len - len(para))
                                                   for para in inst] +
-                                                 [[-1e18] * self.max_para_len] * (self.max_para_num - len(inst))
+                                                 [[-1e18] * self.max_para_len] *
+                                                 (self.max_para_num - len(inst))
                                                  for inst in insts], dtype="float32")
         return_list += [src_words_slf_attn_bias_data]
 
@@ -410,7 +436,8 @@ class GraphSumReader(object):
                                                  for inst in insts], dtype="float32")
         return_list += [src_sents_slf_attn_bias_data]
 
-        graphs = [[[1.0 - float(sim) for sim in list(row)] for row in g] for g in graphs]
+        graphs = [[[1.0 - float(sim) for sim in list(row)]
+                   for row in g] for g in graphs]
         # (batch_size, max_nblock, max_nblock)
         graph_attn_bias = np.array([self._pad_matrix(g, self.max_para_num, self.max_para_num, 1.0)
                                     for g in graphs], dtype="float32")
@@ -436,7 +463,8 @@ class GraphSumReader(object):
         return_list += [inst_pos]
 
         # This is used to avoid attention on subsequent words.
-        slf_attn_bias_data = np.ones((len(insts), self.max_tgt_len, self.max_tgt_len), dtype="float32")
+        slf_attn_bias_data = np.ones(
+            (len(insts), self.max_tgt_len, self.max_tgt_len), dtype="float32")
         slf_attn_bias_data = np.triu(slf_attn_bias_data, 1) * -1e18
         return_list += [slf_attn_bias_data]
 

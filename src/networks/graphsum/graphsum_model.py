@@ -19,6 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 import json
+import os
 import six
 from collections import namedtuple
 import paddle.fluid as fluid
@@ -107,6 +108,15 @@ class GraphSumModel(object):
         self.min_out_len = args.min_out_len
         self.block_trigram = args.block_trigram
         self.pos_win = args.pos_win
+
+        self._load_meta_information()
+
+    def _load_meta_information(self):
+
+        tmp = json.load(
+            open(os.path.dirname(self.args.train_set) + "/maximal_number_textual_units"))
+        self.max_number_of_docs = {
+            "train": tmp["train"], "do_dec": max(tmp["test"], tmp["valid"])}
 
     def _gen_enc_input(self, src_word, src_word_pos, src_sen_pos, word_slf_attn_bias,
                        sen_slf_attn_bias, graph_attn_bias):
@@ -452,16 +462,17 @@ class GraphSumModel(object):
                     [-1, self.max_tgt_len],  # trg_pos
                     [-1, self.max_tgt_len, self.max_tgt_len],  # trg_slf_attn_bias
                     [-1, 1],  # tgt_label
-                    [-1, 1]],  # label_weights
+                    [-1, 1],  # label_weights
+                    [-1, self.max_number_of_docs["train"]]],  # Maximum number of Documents
             dtypes=['int64', 'int64', 'int64', 'float32', 'float32', 'float32',
                     'int64', 'int64', 'float32',
-                    'int64', 'float32'],
-            lod_levels=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    'int64', 'float32', "int64"],
+            lod_levels=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             name=pyreader_name,
             use_double_buffer=True)
 
         (src_word, src_word_pos, src_sent_pos, src_words_slf_attn_bias, src_sents_slf_attn_bias,
-         graph_attn_bias, trg_word, trg_pos, trg_slf_attn_bias, tgt_label, label_weights) = \
+         graph_attn_bias, trg_word, trg_pos, trg_slf_attn_bias, tgt_label, label_weights, _) = \
             fluid.layers.read_file(pyreader)
 
         src_words_slf_attn_bias = layers.expand(layers.unsqueeze(src_words_slf_attn_bias, axes=[2, 3]),
@@ -524,15 +535,16 @@ class GraphSumModel(object):
                     [-1, 1],  # start_tokens
                     [-1, 1],  # init_scores
                     [-1],  # parent_idx
-                    [-1, 1]],  # data_ids
+                    [-1, 1],  # data_ids
+                    [-1, self.max_number_of_docs["do_dec"]]],  # Maximum number of Documents
             dtypes=['int64', 'int64', 'int64', 'float32', 'float32', 'float32',
-                    'int64', 'float32', 'int64', 'int64'],
-            lod_levels=[0, 0, 0, 0, 0, 0, 2, 2, 0, 0],
+                    'int64', 'float32', 'int64', 'int64', 'int64'],
+            lod_levels=[0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0],
             name=pyreader_name,
             use_double_buffer=True)
 
         (src_word, src_word_pos, src_sent_pos, src_words_slf_attn_bias, src_sents_slf_attn_bias,
-         graph_attn_bias, start_tokens, init_scores, parent_idx, data_ids) = \
+         graph_attn_bias, start_tokens, init_scores, parent_idx, data_ids, number_of_textual_units) = \
             fluid.layers.read_file(pyreader)
 
         src_words_slf_attn_bias = layers.expand(layers.unsqueeze(src_words_slf_attn_bias, axes=[2, 3]),
@@ -965,6 +977,7 @@ class GraphSumModel(object):
             "finished_ids": finished_ids,
             "finished_scores": finished_scores,
             "data_ids": data_ids,
+            "number_of_textual_units": number_of_textual_units,
             "weight_array": weight_tensor,
             "parent_idx": parent_idx_tensor,
             "scores_tensor": scores_tensor
