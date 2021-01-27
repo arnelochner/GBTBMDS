@@ -237,13 +237,13 @@ def transform_attention_weights(attention_weights, parent_idx, scores, result_di
 
     Returns:
 
-    - decoded_weight_matrix (np.array, shape=[
+    - cleaned_weight_matrix (np.array, shape=[
         num_examples,beam_size,max_out_len,num_decoding_layer,num_multi_head,num_paragraphs]
-        ): Transformed Weight Matrix, where the beams are "recreated"
+        ): Transformed Weight Matrix, where the beams are "recreated", sorted and cleaned
 
-    - decoded_score_matrix (np.array, shape=[
+    - cleaned_score_matrix (np.array, shape=[
         num_examples,beam_size,max_out_len]
-        ): Transformed Score Matrix, where the beams are "recreated"
+        ): Transformed Score Matrix, where the beams are "recreated", sorted and cleaned
 
     """
 
@@ -263,15 +263,46 @@ def transform_attention_weights(attention_weights, parent_idx, scores, result_di
 
 
 def sort_matrixes(decoded_weight_matrix, decoded_score_matrix, longest_beam_array):
+    """
+    The Beam Search Decoder, which is used in GraphSum sorts the beam of all examples based on their scores. 
+    The Decoded_Weight_Matrix and Decoded_Score_Matrix are not sorted so far. Therefore this function is used to sort the beams
+    which can help to map these matrixes to the output of the beam search decoder.
+
+    Args:
+    - decoded_weight_matrix (np.array, shape=[
+        num_examples,beam_size,max_out_len,num_decoding_layer,num_multi_head,num_paragraphs]
+        ): Transformed Weight Matrix, where the beams are "recreated"
+
+    - decoded_score_matrix (np.array, shape=[
+        num_examples,beam_size,max_out_len]
+        ): Transformed Score Matrix, where the beams are "recreated"
+
+    - longest_beam_array (np.array, shape=[
+        num_examples,]
+        ): Array, which provides information, how long the farthest beam went for each example
+
+    Returns:
+
+    - sorted_weight_matrix (np.array, shape=[
+        num_examples,beam_size,max_out_len,num_decoding_layer,num_multi_head,num_paragraphs]
+        ): Transformed Weight Matrix, where the beams are "recreated" and sorted
+
+    - sorted_score_matrix (np.array, shape=[
+        num_examples,beam_size,max_out_len]
+        ): Transformed Score Matrix, where the beams are "recreated" and sorted
+    """
 
     num_examples, num_beams, _ = decoded_score_matrix.shape
 
+    # Retrieve Index Information for each examples, which beam has the highest end-score
     sort_information = np.argsort(
         -decoded_score_matrix[range(0, num_examples), :, longest_beam_array.astype("int")])
 
+    # Sort Score Matrix based on previous recieved sort_information
     sorted_score_matrix = decoded_score_matrix[np.repeat(np.array(list(
         range(0, num_examples)))[:, np.newaxis], num_beams, axis=1), sort_information, :]
 
+    # Sort Weight Matrix based on previous recieved sort_information
     sorted_weight_matrix = decoded_weight_matrix[np.repeat(np.array(list(range(
         0, num_examples)))[:, np.newaxis], num_beams, axis=1), sort_information, :, :, :, :]
 
@@ -279,20 +310,51 @@ def sort_matrixes(decoded_weight_matrix, decoded_score_matrix, longest_beam_arra
 
 
 def cleanup_matrix(sorted_weight_matrix, sorted_score_matrix, beam_length):
+    """
+    The graph-sum model does not end a beam, if the beam produced and EOS token. An example is only removed from the prediction process if all beams produced this EOS token.
+    Therefore beams that are already finished, are still producing additional tokens with additional attention_weights_output.
+    For our analysis we want to remove those additional tokens / outputs because they do not provide any additional information.
 
+    Args:
+
+    - sorted_weight_matrix (np.array, shape=[
+        num_examples,beam_size,max_out_len,num_decoding_layer,num_multi_head,num_paragraphs]
+        ): Transformed Weight Matrix, where the beams are "recreated" and sorted
+
+    - sorted_score_matrix (np.array, shape=[
+        num_examples,beam_size,max_out_len]
+        ): Transformed Score Matrix, where the beams are "recreated" and sorted
+
+    - beam_length (np.array, shape=[
+        num_examples,beam_size]
+        ): Array storing information, at which position the beam produced the first EOS token / reached the maxium length.
+
+    Returns:
+
+    - cleaned_weight_matrix (np.array, shape=[
+        num_examples,beam_size,max_out_len,num_decoding_layer,num_multi_head,num_paragraphs]
+        ): Transformed Weight Matrix, where the beams are "recreated", sorted and cleaned
+
+    - cleaned_score_matrix (np.array, shape=[
+        num_examples,beam_size,max_out_len]
+        ): Transformed Score Matrix, where the beams are "recreated", sorted and cleaned
+    """
     num_examples, num_beams, num_steps = sorted_score_matrix.shape
 
+    # Function used to create value_indexes for cleanup
     def create_index_information(x):
         return [list(range(int(i), num_steps)) for i in x]
 
+    # Create list of indexes, where each index is repeated by the required amount of times
     example_index = np.repeat(list(range(0, num_examples)), np.sum(
         num_steps - beam_length, axis=1).astype("int"))
 
+    # Create list of value indexes with depth of 1
     indexs = list(map(create_index_information, beam_length))
-
     value_indexs = [
         index for elem in indexs for beam in elem for index in beam]
 
+    # Create list of beam indexes with depth of 1
     beam_index = np.repeat(np.tile(list(range(0, num_beams)), num_examples),
                            (num_steps - beam_length).astype("int").reshape(-1,))
 
@@ -300,8 +362,10 @@ def cleanup_matrix(sorted_weight_matrix, sorted_score_matrix, beam_length):
 
     cleaned_weight_matrix = sorted_weight_matrix.copy()
 
+    # Remove unwanted "noise"
     cleaned_score_matrix[example_index, beam_index, value_indexs] = 0
 
+    # Remove unwanted "noise"
     cleaned_weight_matrix[example_index, beam_index, value_indexs, :, :, :] = 0
 
     return cleaned_weight_matrix, cleaned_score_matrix
