@@ -307,7 +307,7 @@ class GraphSumModel(object):
 
         return enc_words_out, enc_sents_out
 
-    def decode(self, dec_input, enc_words_output, enc_sents_output, attention_weights_array=None, caches=None, gather_idx=None):
+    def decode(self, dec_input, enc_words_output, enc_sents_output, attention_weights_array=None, local_attention_weights_array=None, caches=None, gather_idx=None):
         """Decoding to generate output text"""
 
         trg_word, trg_pos, trg_slf_attn_bias, trg_src_words_attn_bias, \
@@ -352,6 +352,7 @@ class GraphSumModel(object):
             caches=caches,
             gather_idx=gather_idx,
             attention_weights_array=attention_weights_array,
+            local_attention_weights_array=local_attention_weights_array,
             name='graph_decoder')
 
         # Reshape to 2D tensor to use GEMM instead of BatchedGEMM
@@ -633,6 +634,7 @@ class GraphSumModel(object):
 
             # Array where for a single step_id the attention_weighst are stored.
             attention_weights_array = layers.create_array(dtype="float64")
+            local_attention_weights_array = layers.create_array(dtype="float64")
 
             # Array where for each step_id the parent_id information for each beam of each example is stored. Used to recreate beams in post-processing script
             parrent_idx_array = layers.create_array(dtype="int64")
@@ -671,7 +673,8 @@ class GraphSumModel(object):
                                      enc_sents_output=enc_sents_output,
                                      caches=caches,
                                      gather_idx=parent_idx,
-                                     attention_weights_array=attention_weights_array)
+                                     attention_weights_array=attention_weights_array,
+                                     local_attention_weights_array=local_attention_weights_array)
 
                 # prevent generating end token if length less than min_out_len
                 eos_index = layers.fill_constant(shape=[layers.shape(logits)[0]],
