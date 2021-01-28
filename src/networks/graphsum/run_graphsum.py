@@ -530,7 +530,8 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
             graph_vars["finished_scores"].name,
             graph_vars["data_ids"].name,
             graph_vars["number_of_textual_units"].name,
-            graph_vars["weight_array"],
+            graph_vars["attention_weight_array"],
+            graph_vars["local_attention_weight_array"],
             graph_vars["parent_idx"].name,
             graph_vars["scores_tensor"].name,
         ]
@@ -570,14 +571,16 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 acc += total_acc
                 steps += 1
             else:
-                seq_ids, seq_scores, data_ids, number_of_textual_units, weights, parent_idx, scores_tensor = outputs
+                seq_ids, seq_scores, data_ids, number_of_textual_units, attention_weights, local_attention_weights, parent_idx, scores_tensor = outputs
                 # seq_ids, seq_scores, data_ids = outputs
 
-                weights = np.array(weights)
+                attention_weights = np.array(attention_weights)
+                local_attention_weights = np.array(local_attention_weights)
                 parent_idx = np.array(parent_idx)
                 scores_tensor = np.array(scores_tensor)
 
-                print("Numpy Weights shape %s" % str(weights.shape))
+                print("Attention weights shape %s" % str(attention_weights.shape))
+                print("Local attention weights shape %s" % str(local_attention_weights.shape))
                 print("parent_idx shape %s" % str(parent_idx.shape))
                 print("scores shape %s" % str(scores_tensor.shape))
 
@@ -587,7 +590,8 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 # print(a_weights.shape)
                 # print(a_weights)
 
-                np.save("pretrained_attention_weights", weights)
+                np.save("pretrained_attention_weights", attention_weights)
+                np.save("pretrained_local_attention_weights", local_attention_weights)
                 np.save("parent_idx", parent_idx)
                 np.save("scores", scores_tensor)
 
@@ -606,16 +610,16 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 # print("Seq_ids length: %d" % (len(seq_ids_list)))
                 data_idx = 0
 
-                longest_beam_array = np.zeros(shape=weights.shape[:1])
+                longest_beam_array = np.zeros(shape=attention_weights.shape[:1])
 
-                beam_length_array = np.zeros(shape=weights.shape[:2])
+                beam_length_array = np.zeros(shape=attention_weights.shape[:2])
 
                 token_beam_array = -np.ones(
-                    shape=weights.shape[:3])
+                    shape=attention_weights.shape[:3])
 
                 summary_beam_list = []
 
-                scores_array = np.zeros(shape=weights.shape[:3])
+                scores_array = np.zeros(shape=attention_weights.shape[:3])
 
                 for seq_ids, seq_scores in zip(seq_ids_list, seq_scores_list):
                     # How to parse the results:

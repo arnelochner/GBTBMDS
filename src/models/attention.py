@@ -518,6 +518,7 @@ def multi_head_hierarchical_attention(queries,
                                       d_model,
                                       n_head=1,
                                       attention_weights_array=[],
+                                      local_attention_weights_array=[],
                                       layer_id=0,
                                       dropout_rate=0.,
                                       dropout_seed=None,
@@ -976,6 +977,9 @@ def multi_head_hierarchical_attention(queries,
 
         # (batch_size, n_block, n_head, tgt_len, n_token)
         weights = layers.softmax(product)
+
+        if local_attention_weights_array is not None:
+            layers.array_write(weights, layer_id, local_attention_weights_array)
 
         # attn_w = layers.reshape(weights, shape=[batch_size, key_s_len, n_head, query_len, -1])
         # (batch_size, n_head, tgt_len, n_block, n_token)
