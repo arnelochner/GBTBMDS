@@ -162,8 +162,9 @@ def heatmap_sent_simp(result_dict, aggregated_weight_matrix, example=0, decoding
     if plot:
         fig, ax = plt.subplots(figsize=(20, 10))
 
-    for p in text_units:
-        ax.plot(x, np.repeat(p, aux.shape[0]))
+    #for p in text_units:
+        #ax.plot(x, np.repeat(p, aux.shape[0]))
+    ax.hlines(text_units[:-1],0,aux.shape[0],colors="white",linestyles='dashdot',linewidth=2)
 
     im = ax.imshow(Z, cmap='hot', extent=(
         0, aux.shape[0], aux.shape[1], 0), aspect='auto')  # , interpolation='bilinear')
