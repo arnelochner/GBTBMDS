@@ -89,48 +89,46 @@ def histo_3d_simple(decoded_weight_matrix, decoded_score_matrix, number_of_textu
 
     plt.show()
 
-    
-    
-def heatmap_simp(result_dict,decoded_weight_matrix,decoded_score_matrix, example=0, decoding_layer=0,num_multi_head=0,plot=True, ax=[]):
 
-    step=result_dict['longest_beam_array'][example]
+def heatmap_simp(result_dict, decoded_weight_matrix, decoded_score_matrix, example=0, decoding_layer=0, num_multi_head=0, plot=True, ax=[]):
 
-    number_of_textual_units=result_dict["number_of_textual_units"][example]
-    text_units = np.cumsum(number_of_textual_units[number_of_textual_units != 0])
+    step = result_dict['longest_beam_array'][example]
 
-    longest_beam_array=(result_dict["longest_beam_array"]-1).astype("int")
+    number_of_textual_units = result_dict["number_of_textual_units"][example]
+    text_units = np.cumsum(
+        number_of_textual_units[number_of_textual_units != 0])
 
+    longest_beam_array = (result_dict["longest_beam_array"]-1).astype("int")
 
-    aux=decoded_weight_matrix[example, np.argmax( decoded_score_matrix[example, :, longest_beam_array[example]]), :, decoding_layer, num_multi_head, :]
-    aux=aux[:, np.max(aux, axis=0) > 1e-10]
-    aux=aux[np.max(aux, axis=1) > 1e-10,:]
+    aux = decoded_weight_matrix[example, 0,
+                                :, decoding_layer, num_multi_head, :]
+    aux = aux[:, np.max(aux, axis=0) > 1e-10]
+    aux = aux[np.max(aux, axis=1) > 1e-10, :]
     # Calculating the output and storing it in the array Z
     x = np.arange(0, aux.shape[0], 1)
     y = np.arange(0, aux.shape[1], 1)
     X, Y = np.meshgrid(x, y)
 
-
     Z = aux[X, Y]
 
     if plot:
-        fig, ax = plt.subplots(figsize=(20,10))
+        fig, ax = plt.subplots(figsize=(20, 10))
 
     for p in text_units:
-        ax.plot(x,np.repeat(p, aux.shape[0]))
+        ax.plot(x, np.repeat(p, aux.shape[0]))
 
-    im = ax.imshow(Z, cmap='hot', extent=(0, aux.shape[0], aux.shape[1], 0), aspect='auto')#, interpolation='bilinear')
+    im = ax.imshow(Z, cmap='hot', extent=(
+        0, aux.shape[0], aux.shape[1], 0), aspect='auto')  # , interpolation='bilinear')
 
-
-
-    bar= plt.colorbar(im);
+    bar = plt.colorbar(im)
     bar.set_label('Attention')
 
-
     ax.set_yticks(y[::2], minor=True)
-    ax.set_yticklabels(y[::2], minor=True )
-    
-    ax.set_yticks(np.cumsum(number_of_textual_units[number_of_textual_units != 0])-number_of_textual_units[number_of_textual_units != 0]/2)
-    ax.set_yticklabels(["Doc " +str(i) for i in range(0, len(text_units))])
+    ax.set_yticklabels(y[::2], minor=True)
+
+    ax.set_yticks(np.cumsum(
+        number_of_textual_units[number_of_textual_units != 0])-number_of_textual_units[number_of_textual_units != 0]/2)
+    ax.set_yticklabels(["Doc " + str(i) for i in range(0, len(text_units))])
     ax.tick_params(axis='y', which='major', length=20)
 
     ax.set_ylabel('Paragraph')
@@ -139,62 +137,139 @@ def heatmap_simp(result_dict,decoded_weight_matrix,decoded_score_matrix, example
         plt.show()
     else:
         return ax
-    
-def heatmap_multi(result_dict,decoded_weight_matrix,decoded_score_matrix, decoding_layer=0,num_multi_head=0,size=(40,8)):    
+
+
+def heatmap_sent_simp(result_dict, aggregated_weight_matrix, example=0, decoding_layer=0, num_multi_head=0, plot=True, ax=[]):
+
+    #num_examples, num_beams, num_genereated_sent, _, _, _ = aggregated_weight_matrix.shape
+
+    number_of_textual_units = result_dict["number_of_textual_units"][example]
+
+    text_units = np.cumsum(
+        number_of_textual_units[number_of_textual_units != 0])
+
+    aux = aggregated_weight_matrix[example, 0,
+                                   :, decoding_layer, num_multi_head, :]
+    aux = aux[:, np.max(aux, axis=0) > 1e-10]
+    aux = aux[np.max(aux, axis=1) > 1e-10, :]
+    # Calculating the output and storing it in the array Z
+    x = np.arange(0, aux.shape[0], 1)
+    y = np.arange(0, aux.shape[1], 1)
+    X, Y = np.meshgrid(x, y)
+
+    Z = aux[X, Y]
+
+    if plot:
+        fig, ax = plt.subplots(figsize=(20, 10))
+
+    for p in text_units:
+        ax.plot(x, np.repeat(p, aux.shape[0]))
+
+    im = ax.imshow(Z, cmap='hot', extent=(
+        0, aux.shape[0], aux.shape[1], 0), aspect='auto')  # , interpolation='bilinear')
+
+    bar = plt.colorbar(im)
+    bar.set_label('Attention')
+
+    ax.set_yticks(y[::2], minor=True)
+    ax.set_yticklabels(y[::2], minor=True)
+
+    ax.set_yticks(np.cumsum(
+        number_of_textual_units[number_of_textual_units != 0])-number_of_textual_units[number_of_textual_units != 0]/2)
+    ax.set_yticklabels(["Doc " + str(i) for i in range(0, len(text_units))])
+    ax.tick_params(axis='y', which='major', length=20)
+
+    ax.set_ylabel('Paragraph')
+    ax.set_xlabel('Generated Sentence')
+    if plot:
+        plt.show()
+    else:
+        return ax
+
+
+def heatmap_sent_multi(result_dict, aggregated_weight_matrix, decoding_layer=0, num_multi_head=0, size=(40, 8)):
     fig = plt.figure(figsize=size)
 
-    examples, beam_size, number_steps, _, _, number_paragraphs = decoded_weight_matrix.shape
-    spec=gridspec.GridSpec(2,examples//2, wspace=0.6, hspace=0.3)
+    examples, beam_size, num_generated_sentences, _, _, number_paragraphs = aggregated_weight_matrix.shape
+    spec = gridspec.GridSpec(2, examples//2, wspace=0.6, hspace=0.3)
 
     for i in range(examples):
 
-        ax = fig.add_subplot(spec[i//(examples//2),i%(examples//2)])
+        ax = fig.add_subplot(spec[i//(examples//2), i % (examples//2)])
 
         example = i
-        ax=heatmap_simp(result_dict,decoded_weight_matrix,decoded_score_matrix, example, decoding_layer,num_multi_head,False,ax)
+        ax = heatmap_sent_simp(result_dict, aggregated_weight_matrix,
+                               example, decoding_layer, num_multi_head, False, ax)
         ax.set_title(r"Example: $%d$" % (example))
 
     plt.show()
-    
-    
-def heatmap_dec_layer(result_dict,decoded_weight_matrix,decoded_score_matrix,num_multi_head=0, size=(40, 70),save=False):
+
+
+def heatmap_multi(result_dict, decoded_weight_matrix, decoded_score_matrix, decoding_layer=0, num_multi_head=0, size=(40, 8)):
     fig = plt.figure(figsize=size)
-    examples, beam_size, number_steps, num_decoding_layer, _ , number_paragraphs = decoded_weight_matrix.shape
+
+    examples, beam_size, number_steps, _, _, number_paragraphs = decoded_weight_matrix.shape
+    spec = gridspec.GridSpec(2, examples//2, wspace=0.6, hspace=0.3)
+
+    for i in range(examples):
+
+        ax = fig.add_subplot(spec[i//(examples//2), i % (examples//2)])
+
+        example = i
+        ax = heatmap_simp(result_dict, decoded_weight_matrix, decoded_score_matrix,
+                          example, decoding_layer, num_multi_head, False, ax)
+        ax.set_title(r"Example: $%d$" % (example))
+
+    plt.show()
+
+
+def heatmap_dec_layer(result_dict, decoded_weight_matrix, decoded_score_matrix, num_multi_head=0, size=(40, 70), save=False):
+    fig = plt.figure(figsize=size)
+    examples, beam_size, number_steps, num_decoding_layer, _, number_paragraphs = decoded_weight_matrix.shape
 
     outer = gridspec.GridSpec(examples, 1, wspace=0.2, hspace=0.4)
 
     for i in range(examples):
-        inner = gridspec.GridSpecFromSubplotSpec(1, num_decoding_layer, subplot_spec=outer[i], wspace=0.7, hspace=0.2)
+        inner = gridspec.GridSpecFromSubplotSpec(
+            1, num_decoding_layer, subplot_spec=outer[i], wspace=0.7, hspace=0.2)
         for j in range(num_decoding_layer):
-            ax = fig.add_subplot( inner[j])
-            ax=heatmap_simp(result_dict,decoded_weight_matrix,decoded_score_matrix, i, j,num_multi_head,False,ax)
-            if j==0:
-                ax.set_title(r"Example $%d$"% (i) +" \n\n" + r" Dec_layer: $%d$" % (j))
+            ax = fig.add_subplot(inner[j])
+            ax = heatmap_simp(result_dict, decoded_weight_matrix,
+                              decoded_score_matrix, i, j, num_multi_head, False, ax)
+            if j == 0:
+                ax.set_title(r"Example $%d$" %
+                             (i) + " \n\n" + r" Dec_layer: $%d$" % (j))
             else:
                 ax.set_title(r"Dec_layer: $%d$" % (j))
-    
-    fig.suptitle("Attentions for all examples over all decoding layers and attetion head {}".format(num_multi_head))   
+
+    fig.suptitle("Attentions for all examples over all decoding layers and attetion head {}".format(
+        num_multi_head))
     if save:
-        plt.savefig('saved_figs/dec_layer.svg',facecolor="white")
+        plt.savefig('saved_figs/dec_layer.svg', facecolor="white")
     plt.show()
-    
-def heatmap_att_head(result_dict,decoded_weight_matrix,decoded_score_matrix,example=0, size=(40, 70),save=False):
+
+
+def heatmap_att_head(result_dict, decoded_weight_matrix, decoded_score_matrix, example=0, size=(40, 70), save=False):
     fig = plt.figure(figsize=size)
-    examples, beam_size, number_steps, num_decoding_layer, num_multi_head , number_paragraphs = decoded_weight_matrix.shape
+    examples, beam_size, number_steps, num_decoding_layer, num_multi_head, number_paragraphs = decoded_weight_matrix.shape
 
     outer = gridspec.GridSpec(num_multi_head, 1, wspace=0.2, hspace=0.4)
 
     for i in range(num_multi_head):
-        inner = gridspec.GridSpecFromSubplotSpec(1, num_decoding_layer, subplot_spec=outer[i], wspace=0.7, hspace=0.2)
+        inner = gridspec.GridSpecFromSubplotSpec(
+            1, num_decoding_layer, subplot_spec=outer[i], wspace=0.7, hspace=0.2)
         for j in range(num_decoding_layer):
-            ax = fig.add_subplot( inner[j])
-            ax=heatmap_simp(result_dict,decoded_weight_matrix,decoded_score_matrix, example, j,i,False,ax)
-            if j==0:
-                ax.set_title(r"Multi head $%d$"% (i) +" \n\n" + r" Dec_layer: $%d$" % (j))
+            ax = fig.add_subplot(inner[j])
+            ax = heatmap_simp(result_dict, decoded_weight_matrix,
+                              decoded_score_matrix, example, j, i, False, ax)
+            if j == 0:
+                ax.set_title(r"Multi head $%d$" %
+                             (i) + " \n\n" + r" Dec_layer: $%d$" % (j))
             else:
                 ax.set_title(r"Dec_layer: $%d$" % (j))
-            
-    plt.suptitle("Attentions for Example number {} over all decoding layers and attetion heads".format(example)) 
+
+    plt.suptitle(
+        "Attentions for Example number {} over all decoding layers and attetion heads".format(example))
     if save:
-        plt.savefig('saved_figs/att_head.svg',facecolor="white")
+        plt.savefig('saved_figs/att_head.svg', facecolor="white")
     plt.show()
