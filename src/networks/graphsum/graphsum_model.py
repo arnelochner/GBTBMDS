@@ -575,6 +575,7 @@ class GraphSumModel(object):
         enc_words_output, enc_sents_output = self.encode(enc_input=enc_input)
 
         def beam_search():
+            self.extract_local_attention = False
             """Beam search function"""
             test_liste = []
             max_len = layers.fill_constant(
@@ -603,8 +604,14 @@ class GraphSumModel(object):
             # to reduce redundant computation.
 
             # Padding Helpers which are used to being able to concatinate the tensors of all steps, where the shapes can be different
-            padding_helper = layers.fill_constant_batch_size_like(dtype="float64", value=0,
+            weights_padding_helper = layers.fill_constant_batch_size_like(dtype="float64", value=0,
                                                                   input=start_tokens, shape=[-1, self.beam_size, 1, self._dec_n_layer, self._n_head, self.max_para_num])
+            if self.extract_local_attention:
+
+                local_weights_padding_helper = layers.fill_constant_batch_size_like(dtype="float64", value=0,
+                                                                      input=start_tokens, shape=[-1, self.beam_size, 1, self.max_para_num * self._n_head, self._dec_n_layer, self.max_para_len])
+
+            # note: for local_weights num_examples and beam_size have combined dimension
 
             parent_padding_helper = layers.fill_constant_batch_size_like(dtype="float64", value=0,
                                                                          input=start_tokens, shape=[-1, self.beam_size, 1])
@@ -644,11 +651,18 @@ class GraphSumModel(object):
             attention_weights_array_all_steps = layers.create_array(
                 dtype="float64")
             # Array for local attention weights for each step
-            local_attention_weights_array_all_steps = layers.create_array(
-                dtype="float64")
+            if self.extract_local_attention:
+
+                local_attention_weights_array_all_steps = layers.create_array(
+                    dtype="float64")
             # Array where for a single step_id the attention_weighst are stored.
             attention_weights_array = layers.create_array(dtype="float64")
+
             local_attention_weights_array = layers.create_array(dtype="float64")
+
+            # Array where pre-ids are stored for all steps
+            pre_ids_all_steps = layers.create_array(
+                dtype="float64")
 
             # Array where for each step_id the parent_id information for each beam of each example is stored. Used to recreate beams in post-processing script
             parrent_idx_array = layers.create_array(dtype="int64")
@@ -657,16 +671,17 @@ class GraphSumModel(object):
             scores_array = layers.create_array(dtype="float64")
 
             # Array where for each step_id the pre-ids for each beam of each example is stored.
-            pre_ids_array = layers.create_array(dtype="float64")
+            pre_ids_array = layers.create_array(dtype="int64")
             with while_op.block():
 
                 pre_ids = layers.array_read(array=ids, i=step_idx)
+                layers.Print(pre_ids, message="pre_ids")
                 pre_ids = layers.reshape(pre_ids, (-1, 1, 1), inplace=True)
                 # Since beam_search_op dosen't enforce pre_ids' shape, we can do
                 # inplace reshape here which actually change the shape of pre_ids.
                 # pre_ids = layers.reshape(pre_ids, (-1, 1, 1), inplace=True)
                 pre_scores = layers.array_read(array=scores, i=step_idx)
-                layers.Print(pre_scores, message="pre_scores")
+                #layers.Print(pre_scores, message="pre_scores")
                 # gather cell states corresponding to selected parent
                 pre_src_words_attn_bias = layers.gather(
                     tgt_src_words_attn_bias, index=parent_idx)
@@ -772,9 +787,10 @@ class GraphSumModel(object):
 
                 attention_weights_single_decoding = layers.create_tensor(dtype="float64")
                 attention_weights_all_decoding = layers.create_tensor(dtype="float64")
+                if self.extract_local_attention:
 
-                local_attention_weights_single_decoding = layers.create_tensor(dtype="float64")
-                local_attention_weights_all_decoding = layers.create_tensor(dtype="float64")
+                    local_attention_weights_single_decoding = layers.create_tensor(dtype="float64")
+                    local_attention_weights_all_decoding = layers.create_tensor(dtype="float64")
 
                 # Read Attention Weights from first decoding_layer
                 attention_weights_first_decoding_layer = layers.array_read(
@@ -783,15 +799,42 @@ class GraphSumModel(object):
                     attention_weights_first_decoding_layer, shape=[-1, 1, 1, 1, self._n_head, self.max_para_num])
 
                 # Same stuff for local attention:
-                local_attention_weights_first_decoding_layer = layers.array_read(
-                    local_attention_weights_array, layers.fill_constant(shape=[1], value=0, dtype="int64"))
-                local_attention_weights_first_decoding_layer = layers.reshape(
-                    local_attention_weights_first_decoding_layer, shape=[-1, 1, 1, 1, self._n_head, self.max_para_num])
+                if self.extract_local_attention:
+                    local_attention_weights_first_decoding_layer = layers.array_read(
+                        local_attention_weights_array, layers.fill_constant(shape=[1], value=0, dtype="int64"))
+
+                    local_attention_weights_first_decoding_layer = layers.reshape(
+                        local_attention_weights_first_decoding_layer, shape=[-1, 1, 1, self.max_para_num * self._n_head, 1, self.max_para_len])
 
 
                 # Buffer Variable to store parent_idx of step
                 current_parent_idx = layers.create_tensor(dtype="int64")
 
+                current_pre_id = layers.create_tensor(dtype="int64")
+                # Transform pre_id lod into normal tensor
+                pre_ids = layers.elementwise_add(layers.fill_constant(
+                    shape=[1], value=0, dtype="int64"), pre_ids)
+
+                # Reshape pre-ids based on step
+                with ie.true_block():
+                    local_pre_ids = ie.input(pre_ids)
+                    local_pre_ids = layers.reshape(
+                        local_pre_ids, shape=[-1, 1, 1])
+                    # Expand 'local_parent_idx' for first step, becuase only 1 beam is active
+                    local_pre_ids = layers.expand(
+                        local_pre_ids, expand_times=[1, self.beam_size, 1])
+
+                    layers.assign(local_pre_ids, current_pre_id)
+                    ie.output(current_pre_id)
+
+                with ie.false_block():
+                    local_pre_ids = ie.input(pre_ids)
+                    local_pre_ids = layers.reshape(
+                        local_pre_ids, shape=[-1, self.beam_size, 1])
+
+                    layers.assign(local_pre_ids, current_pre_id)
+                    ie.output(current_pre_id)
+                layers.Print(current_pre_id, message="current_pre_id")
                 # Reshape Parent_Idx based on step_idx
                 with ie.true_block():
                     local_parent_idx = ie.input(parent_idx)
@@ -833,24 +876,27 @@ class GraphSumModel(object):
                     ie.output(attention_weights_all_decoding)
 
                 # Local attention weights:
-                with ie.true_block():
-                    reshaped_layer_i = ie.input(
-                        local_attention_weights_first_decoding_layer)
+                if self.extract_local_attention:
 
-                    # Expand 'reshaped_layer_i' for first step, becuase only 1 beam is active
-                    reshaped_layer_i = layers.expand(
-                        reshaped_layer_i, expand_times=[1, self.beam_size, 1, 1, 1, 1])
+                    with ie.true_block():
+                        reshaped_layer_i = ie.input(
+                            local_attention_weights_first_decoding_layer)
 
-                    layers.assign(reshaped_layer_i, local_attention_weights_all_decoding)
-                    ie.output(local_attention_weights_all_decoding)
-                with ie.false_block():
-                    reshaped_layer_i = ie.input(
-                        local_attention_weights_first_decoding_layer)
-                    reshaped_layer_i = layers.reshape(
-                        reshaped_layer_i, shape=[-1, self.beam_size, 1, 1, self._n_head, self.max_para_num])
+                        # Expand 'reshaped_layer_i' for first step, because only 1 beam is active
+                        reshaped_layer_i = layers.expand(
+                            reshaped_layer_i, expand_times=[1, self.beam_size, 1, 1, 1, 1])
 
-                    layers.assign(reshaped_layer_i, local_attention_weights_all_decoding)
-                    ie.output(local_attention_weights_all_decoding)
+                        layers.assign(reshaped_layer_i, local_attention_weights_all_decoding)
+                        ie.output(local_attention_weights_all_decoding)
+                    with ie.false_block():
+                        reshaped_layer_i = ie.input(
+                            local_attention_weights_first_decoding_layer)
+                        reshaped_layer_i = layers.reshape(
+                            reshaped_layer_i, shape=[-1, self.beam_size, 1, self.max_para_num * self._n_head, 1, self.max_para_len])
+                        # shape = [-1, 1, self.max_para_num, self._n_head, 1, self.max_para_len])
+                        layers.assign(reshaped_layer_i, local_attention_weights_all_decoding)
+
+                        ie.output(local_attention_weights_all_decoding)
 
                 # Iterate over all Decoding Layers except the first one and concatinate them.
                 for i in range(1, self._dec_n_layer):
@@ -886,46 +932,52 @@ class GraphSumModel(object):
 
 
                     # Read Local Attention Weights of Layer i from 'local_attention_weights_array'
-                    layer_i = layers.array_read(
-                        local_attention_weights_array, layers.fill_constant(shape=[1], value=i, dtype="int64"))
+                    if self.extract_local_attention:
 
-                    input_i = layers.reshape(
-                        layer_i, shape=[-1, 1, 1, 1, self._n_head, self.max_para_num])
+                        layer_i = layers.array_read(
+                            local_attention_weights_array, layers.fill_constant(shape=[1], value=i, dtype="int64"))
 
-                    # Check if first step_idx
-                    with ie.true_block():
-                        reshaped_layer_i = ie.input(input_i)
-                        # Expand 'reshaped_layer_i' for first step, becuase only 1 beam is active
-                        reshaped_layer_i = layers.expand(
-                            reshaped_layer_i, expand_times=[1, self.beam_size, 1, 1, 1, 1])
+                        input_i = layers.reshape(
+                            layer_i, shape=[-1, 1, 1, self.max_para_num * self._n_head, 1, self.max_para_len])
 
-                        layers.assign(reshaped_layer_i, local_attention_weights_single_decoding)
-                        ie.output(reshaped_layer_i)
-                    with ie.false_block():
-                        reshaped_layer_i = ie.input(input_i)
+                        # Check if first step_idx
+                        with ie.true_block():
+                            reshaped_layer_i = ie.input(input_i)
+                            # Expand 'reshaped_layer_i' for first step, becuase only 1 beam is active
+                            reshaped_layer_i = layers.expand(
+                                reshaped_layer_i, expand_times=[1, self.beam_size, 1, 1, 1, 1])
 
-                        reshaped_layer_i = layers.reshape(
-                            reshaped_layer_i, shape=[-1, self.beam_size, 1, 1, self._n_head, self.max_para_num])
+                            layers.assign(reshaped_layer_i, local_attention_weights_single_decoding)
+                            ie.output(reshaped_layer_i)
+                        with ie.false_block():
+                            reshaped_layer_i = ie.input(input_i)
 
-                        layers.assign(reshaped_layer_i, local_attention_weights_single_decoding)
-                        ie.output(reshaped_layer_i)
+                            reshaped_layer_i = layers.reshape(
+                                reshaped_layer_i, shape=[-1, self.beam_size, 1, self.max_para_num * self._n_head, 1, self.max_para_len])
 
-                    # Concat Local Attention Weights of current decoding layer to the already existing tensor
-                    local_attention_weights_all_decoding = layers.concat(
-                        input=[local_attention_weights_all_decoding, local_attention_weights_single_decoding], axis=3)
+                            layers.assign(reshaped_layer_i, local_attention_weights_single_decoding)
+                            ie.output(reshaped_layer_i)
+
+                        # Concat Local Attention Weights of current decoding layer to the already existing tensor
+
+                        local_attention_weights_all_decoding = layers.concat(
+                            input=[local_attention_weights_all_decoding, local_attention_weights_single_decoding], axis=4)
 
                 # After current step_idx write 'attention_weights_all_decoding' to 'attention_weights_array_all_steps'
                 layers.array_write(
                     attention_weights_all_decoding, step_idx, attention_weights_array_all_steps)
                 # same for local:
-                layers.array_write(
-                    local_attention_weights_all_decoding, step_idx, local_attention_weights_array_all_steps)
+                if self.extract_local_attention:
+                    layers.array_write(
+                        local_attention_weights_all_decoding, step_idx, local_attention_weights_array_all_steps)
 
 
                 # After current step_idx write 'current_parent_idx' to 'parrent_idx_array'
                 layers.array_write(current_parent_idx,
                                    step_idx, parrent_idx_array)
-
+                # Write current_pre_id to pre_ids_array
+                layers.array_write(current_pre_id,
+                                   step_idx, pre_ids_array)
                 # Convert Pre_scores, which is a LoD_Tensor to a Tensor by adding a constant.
                 attention_weight_tmp = layers.fill_constant(
                     shape=[1], value=0, dtype="float32")
@@ -973,29 +1025,36 @@ class GraphSumModel(object):
             local_attention_weight_tensor = layers.create_tensor(dtype="float64")
             scores_tensor = layers.create_tensor(dtype="float64")
             parent_idx_tensor = layers.create_tensor(dtype="int64")
-
+            pre_id_tensor = layers.create_tensor(dtype="int64")
             # Read first Tensors from arrays and store them into tmp-variables
             attention_weight_tmp = layers.array_read(
                 attention_weights_array_all_steps, layers.fill_constant(shape=[1], dtype="int64", value=0))
-
-            local_attention_weight_tmp = layers.array_read(
-                attention_weights_array_all_steps, layers.fill_constant(shape=[1], dtype="int64", value=0))
+            if self.extract_local_attention:
+                local_attention_weight_tmp = layers.array_read(
+                    local_attention_weights_array_all_steps, layers.fill_constant(shape=[1], dtype="int64", value=0))
 
             parent_tmp = layers.array_read(
                 parrent_idx_array, layers.fill_constant(shape=[1], dtype="int64", value=0))
+
+            pre_id_tmp = layers.array_read(
+                pre_ids_array, layers.fill_constant(shape=[1], dtype="int64", value=0))
 
             scores_tmp = layers.array_read(
                 scores_array, layers.fill_constant(shape=[1], dtype="int64", value=0))
 
             # Padd those tmp variable and store them into the result tensors
             layers.assign(
-                layers.pad_constant_like(padding_helper, attention_weight_tmp, pad_value=-1), attention_weight_tensor)
+                layers.pad_constant_like(weights_padding_helper, attention_weight_tmp, pad_value=-1), attention_weight_tensor)
 
-            layers.assign(
-                layers.pad_constant_like(padding_helper, local_attention_weight_tmp, pad_value=-1), local_attention_weight_tensor)
+            if self.extract_local_attention:
+                layers.assign(
+                    layers.pad_constant_like(local_weights_padding_helper, local_attention_weight_tmp, pad_value=-1), local_attention_weight_tensor)
 
             layers.assign(
                 layers.pad_constant_like(parent_padding_helper, parent_tmp, pad_value=-1), parent_idx_tensor)
+
+            layers.assign(
+                layers.pad_constant_like(parent_padding_helper, pre_id_tmp, pad_value=-1), pre_id_tensor)
 
             layers.assign(
                 layers.pad_constant_like(scores_padding_helper, scores_tmp, pad_value=-1), scores_tensor)
@@ -1009,53 +1068,64 @@ class GraphSumModel(object):
 
                 attention_weights_i = layers.array_read(
                     attention_weights_array_all_steps, index)
+                if self.extract_local_attention:
 
-                local_attention_weights_i = layers.array_read(
-                    local_attention_weights_array_all_steps, index)
+                    local_attention_weights_i = layers.array_read(
+                        local_attention_weights_array_all_steps, index)
 
                 parent_idx_i = layers.array_read(
                     parrent_idx_array, index)
-
+                pre_id_i = layers.array_read(
+                    pre_ids_array, index
+                )
                 scores_i = layers.array_read(
                     scores_array, index)
 
                 layers.increment(step_idx, value=-1, in_place=True)
 
                 padded_attention_weights= layers.pad_constant_like(
-                    padding_helper, attention_weights_i, pad_value=-1)
+                    weights_padding_helper, attention_weights_i, pad_value=-1)
 
-                padded_local_attention_weights= layers.pad_constant_like(
-                    padding_helper, local_attention_weights_i, pad_value=-1)
+                if self.extract_local_attention:
+                    padded_local_attention_weights= layers.pad_constant_like(
+                    local_weights_padding_helper, local_attention_weights_i, pad_value=-1)
 
                 padded_parent_idx = layers.pad_constant_like(
                     parent_padding_helper, parent_idx_i, pad_value=-1)
+
+                padded_pre_ids = layers.pad_constant_like(
+                    parent_padding_helper, pre_id_i, pad_value=-1)
 
                 padded_scores = layers.pad_constant_like(
                     scores_padding_helper, scores_i, pad_value=-1)
 
                 attention_weights_res = layers.concat(
                     [attention_weight_tensor, padded_attention_weights], axis=2)
-
-                local_attention_weights_res = layers.concat(
-                    [local_attention_weight_tensor, padded_local_attention_weights], axis=2)
+                if self.extract_local_attention:
+                    local_attention_weights_res = layers.concat(
+                        [local_attention_weight_tensor, padded_local_attention_weights], axis=1)
 
                 parent_res = layers.concat(
                     [parent_idx_tensor, padded_parent_idx], axis=2)
+                pre_id_res = layers.concat(
+                    [pre_id_tensor, padded_pre_ids], axis=2)
 
                 scores_res = layers.concat(
                     [scores_tensor, padded_scores], axis=2)
 
                 layers.assign(parent_res, parent_idx_tensor)
+                layers.assign(pre_id_res, pre_id_tensor)
                 layers.assign(scores_res, scores_tensor)
                 layers.assign(attention_weights_res, attention_weight_tensor)
-                layers.assign(local_attention_weights_res, local_attention_weight_tensor)
+                if self.extract_local_attention:
+                    layers.assign(local_attention_weights_res, local_attention_weight_tensor)
 
                 layers.greater_than(step_idx, layers.fill_constant(
                     shape=[1], value=0, dtype="int64"), cond)
 
-            return finished_ids, finished_scores, attention_weight_tensor, local_attention_weight_tensor, parent_idx_tensor, scores_tensor
+            return finished_ids, finished_scores, attention_weight_tensor, local_attention_weight_tensor, parent_idx_tensor, scores_tensor, pre_id_tensor
 
-        finished_ids, finished_scores, attention_weight_tensor, local_attention_weight_tensor, parent_idx_tensor, scores_tensor = beam_search()
+        finished_ids, finished_scores, attention_weight_tensor, local_attention_weight_tensor, parent_idx_tensor, scores_tensor, pre_id_tensor = beam_search()
 
         graph_vars = {
             "finished_ids": finished_ids,
@@ -1065,7 +1135,8 @@ class GraphSumModel(object):
             "attention_weight_array": attention_weight_tensor,
             "local_attention_weight_array": local_attention_weight_tensor,
             "parent_idx": parent_idx_tensor,
-            "scores_tensor": scores_tensor
+            "scores_tensor": scores_tensor,
+            "pre_ids" : pre_id_tensor
         }
 
         for k, v in graph_vars.items():

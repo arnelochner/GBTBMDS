@@ -978,6 +978,7 @@ def multi_head_hierarchical_attention(queries,
         # (batch_size, n_block, n_head, tgt_len, n_token)
         weights = layers.softmax(product)
 
+        layers.Print(weights, first_n=10, message="Local weights")
         if local_attention_weights_array is not None:
             layers.array_write(weights, layer_id, local_attention_weights_array)
 
