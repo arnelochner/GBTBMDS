@@ -534,6 +534,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
             graph_vars["local_attention_weight_array"],
             graph_vars["parent_idx"].name,
             graph_vars["scores_tensor"].name,
+            graph_vars["pre_ids"].name,
         ]
 
     if do_dec:
@@ -571,19 +572,19 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 acc += total_acc
                 steps += 1
             else:
-                seq_ids, seq_scores, data_ids, number_of_textual_units, attention_weights, local_attention_weights, parent_idx, scores_tensor = outputs
+                seq_ids, seq_scores, data_ids, number_of_textual_units, attention_weights, local_attention_weights, parent_idx, scores_tensor, pre_ids = outputs
                 # seq_ids, seq_scores, data_ids = outputs
 
                 attention_weights = np.array(attention_weights)
                 local_attention_weights = np.array(local_attention_weights)
                 parent_idx = np.array(parent_idx)
                 scores_tensor = np.array(scores_tensor)
-
+                pre_ids = np.array(pre_ids)
                 print("Attention weights shape %s" % str(attention_weights.shape))
                 print("Local attention weights shape %s" % str(local_attention_weights.shape))
                 print("parent_idx shape %s" % str(parent_idx.shape))
                 print("scores shape %s" % str(scores_tensor.shape))
-
+                print("pre_ids shape %s" % str(pre_ids.shape))
                 # print(weights.shape())
                 # a_weights = np.array(weights)
                 # print(type(attention_weights_array))
@@ -594,6 +595,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 np.save("pretrained_local_attention_weights", local_attention_weights)
                 np.save("parent_idx", parent_idx)
                 np.save("scores", scores_tensor)
+                np.save("pre_ids", pre_ids)
 
                 # print(np.array(seq_ids).shape)
                 # print(np.array(seq_scores).shape)
