@@ -114,10 +114,10 @@ def heatmap_simp(result_dict, decoded_weight_matrix, decoded_score_matrix, examp
     if plot:
         fig, ax = plt.subplots(figsize=(20, 10))
 
-    #for p in text_units:
+    # for p in text_units:
     #    ax.plot(x, np.repeat(p, aux.shape[0]))
-    ax.hlines(text_units[:-1],0,aux.shape[0],colors="white",linestyles='dashdot',linewidth=2)
-
+    ax.hlines(text_units[:-1], 0, aux.shape[0],
+              colors="white", linestyles='dashdot', linewidth=2)
 
     im = ax.imshow(Z, cmap='hot', extent=(
         0, aux.shape[0], aux.shape[1], 0), aspect='auto')  # , interpolation='bilinear')
@@ -164,9 +164,10 @@ def heatmap_sent_simp(result_dict, aggregated_weight_matrix, example=0, decoding
     if plot:
         fig, ax = plt.subplots(figsize=(20, 10))
 
-    #for p in text_units:
+    # for p in text_units:
         #ax.plot(x, np.repeat(p, aux.shape[0]))
-    ax.hlines(text_units[:-1],0,aux.shape[0],colors="white",linestyles='dashdot',linewidth=2)
+    ax.hlines(text_units[:-1], 0, aux.shape[0],
+              colors="white", linestyles='dashdot', linewidth=2)
 
     im = ax.imshow(Z, cmap='hot', extent=(
         0, aux.shape[0], aux.shape[1], 0), aspect='auto')  # , interpolation='bilinear')
@@ -278,38 +279,42 @@ def heatmap_att_head(result_dict, decoded_weight_matrix, decoded_score_matrix, e
     plt.show()
 
 
-def generate_histo_mat(result_dict, aggregated_weight_matrix,normalize=False):
-    #over all examples, decoding layers and attention heads.
-    plot=True
-    ax=[]
-    num_ex,_,max_sent,num_multi_heads,decoding_layers,max_para= aggregated_weight_matrix.shape
-    histo=np.zeros((max_sent,max_para)) # maximal length of sentence times maximal paragraph length
+def generate_histo_mat(result_dict, aggregated_weight_matrix, normalize=False):
+    # over all examples, decoding layers and attention heads.
+    plot = True
+    ax = []
+    num_ex, _, max_sent, num_multi_heads, decoding_layers, max_para = aggregated_weight_matrix.shape
+    # maximal length of sentence times maximal paragraph length
+    histo = np.zeros((max_sent, max_para))
     for example in range(num_ex):
         number_of_textual_units = result_dict["number_of_textual_units"][example]
-        text_units = np.cumsum(number_of_textual_units[number_of_textual_units != 0])
-        text_units=np.append(0,text_units)
+        text_units = np.cumsum(
+            number_of_textual_units[number_of_textual_units != 0])
+        text_units = np.append(0, text_units)
         for decoding_layer in range(decoding_layers):
             for num_multi_head in range(num_multi_heads):
-                aux = aggregated_weight_matrix[example, 0, :, decoding_layer, num_multi_head, :]
+                aux = aggregated_weight_matrix[example,
+                                               0, :, decoding_layer, num_multi_head, :]
                 aux = aux[:, np.max(aux, axis=0) > 1e-10]
                 aux = aux[np.max(aux, axis=1) > 1e-10, :]
                 for i in range(len(text_units)-1):
-                    for i,x in enumerate(np.argmax(aux[:,text_units[i]:text_units[i+1]], axis=1)):
-                        histo[i,x]+=1
-    
+                    for j, x in enumerate(np.argmax(aux[:, text_units[i]:text_units[i+1]], axis=1)):
+                        histo[j, x] += 1
+
     #histo=np.vstack((histo, np.argmax(aux[:,text_units[i]:text_units[i+1]], axis=1)))
-    histo=histo[:-1,:]
+    histo = histo[:-1, :]
     if normalize:
-        histo=histo/histo.max(axis=1)[:, np.newaxis]
-    return histo # rows are how often the n-th paragraph of a docuemnt is atended. 
-          # Columns represent sentences, 1 first sentence, 2 second .....
+        histo = histo/histo.max(axis=1)[:, np.newaxis]
+    # rows are how often the n-th paragraph of a docuemnt is atended.
+    return histo
+    # Columns represent sentences, 1 first sentence, 2 second .....
 
 
-def histo_simp(result_dict, aggregated_weight_matrix, normalize=False,plot=True, ax=[]):
+def histo_simp(result_dict, aggregated_weight_matrix, normalize=False, plot=True, ax=[]):
 
-    aux= generate_histo_mat(result_dict,aggregated_weight_matrix,normalize)
+    aux = generate_histo_mat(result_dict, aggregated_weight_matrix, normalize)
     # Calculating the output and storing it in the array Z
-    
+
     x = np.arange(0, aux.shape[0], 1)
     y = np.arange(0, aux.shape[1], 1)
     X, Y = np.meshgrid(x, y)
@@ -319,11 +324,11 @@ def histo_simp(result_dict, aggregated_weight_matrix, normalize=False,plot=True,
     if plot:
         fig, ax = plt.subplots(figsize=(20, 10))
 
-    im = ax.imshow(Z, cmap='hot', extent=(0, aux.shape[0], aux.shape[1], 0), aspect='auto')  # , interpolation='bilinear')
+    im = ax.imshow(Z, cmap='hot', extent=(
+        0, aux.shape[0], aux.shape[1], 0), aspect='auto')  # , interpolation='bilinear')
 
     bar = plt.colorbar(im)
     bar.set_label('Occurrences')
-
 
     ax.set_ylabel('Paragraph number')
     ax.set_xlabel('Generated Sentence')
@@ -331,40 +336,47 @@ def histo_simp(result_dict, aggregated_weight_matrix, normalize=False,plot=True,
         plt.show()
     else:
         return ax
-    
-def generate_histo_mat_per_dec_layer(result_dict, aggregated_weight_matrix, decoding_layer=0,normalize=False):
-    #over all examples, decoding layers and attention heads.
-    plot=True
-    ax=[]
-    num_ex,_,max_sent,num_multi_heads,decoding_layers,max_para= aggregated_weight_matrix.shape
-    histo=np.zeros((max_sent,max_para)) # maximal length of sentence times maximal paragraph length
+
+
+def generate_histo_mat_per_dec_layer(result_dict, aggregated_weight_matrix, decoding_layer=0, normalize=False):
+    # over all examples, decoding layers and attention heads.
+    plot = True
+    ax = []
+    num_ex, _, max_sent, num_multi_heads, decoding_layers, max_para = aggregated_weight_matrix.shape
+    # maximal length of sentence times maximal paragraph length
+    histo = np.zeros((max_sent, max_para))
     for example in range(num_ex):
         number_of_textual_units = result_dict["number_of_textual_units"][example]
-        text_units = np.cumsum(number_of_textual_units[number_of_textual_units != 0])
-        text_units=np.append(0,text_units)
+        text_units = np.cumsum(
+            number_of_textual_units[number_of_textual_units != 0])
+        text_units = np.append(0, text_units)
         for num_multi_head in range(num_multi_heads):
-            aux = aggregated_weight_matrix[example, 0, :, decoding_layer, num_multi_head, :]
+            aux = aggregated_weight_matrix[example,
+                                           0, :, decoding_layer, num_multi_head, :]
             aux = aux[:, np.max(aux, axis=0) > 1e-10]
             aux = aux[np.max(aux, axis=1) > 1e-10, :]
             for i in range(len(text_units)-1):
-                for i,x in enumerate(np.argmax(aux[:,text_units[i]:text_units[i+1]], axis=1)):
-                    histo[i,x]+=1
-    
-    #histo=np.vstack((histo, np.argmax(aux[:,text_units[i]:text_units[i+1]], axis=1)))
-    histo=histo[:-1,:]
-    if normalize:
-        histo=histo/histo.max(axis=1)[:, np.newaxis]
-    return histo # rows are how often the n-th paragraph of a docuemnt is atended. 
-          # Columns represent sentences, 1 first sentence, 2 second .....
-    
-def histo_simp_per_dec_layer(result_dict, aggregated_weight_matrix, normalize=False,size=(40, 10), save=False):
+                for j, x in enumerate(np.argmax(aux[:, text_units[i]:text_units[i+1]], axis=1)):
+                    histo[j, x] += 1
 
-    _,_,_,decoding_layers,_,_= aggregated_weight_matrix.shape
+    #histo=np.vstack((histo, np.argmax(aux[:,text_units[i]:text_units[i+1]], axis=1)))
+    histo = histo[:-1, :]
+    if normalize:
+        histo = histo/histo.max(axis=1)[:, np.newaxis]
+    # rows are how often the n-th paragraph of a docuemnt is atended.
+    return histo
+    # Columns represent sentences, 1 first sentence, 2 second .....
+
+
+def histo_simp_per_dec_layer(result_dict, aggregated_weight_matrix, normalize=False, size=(40, 10), save=False):
+
+    _, _, _, decoding_layers, _, _ = aggregated_weight_matrix.shape
     fig = plt.figure(figsize=size)
     spec = gridspec.GridSpec(2, decoding_layers//2, wspace=0.3, hspace=0.3)
 
     for decoding_layer in range(decoding_layers):
-        aux= generate_histo_mat_per_dec_layer(result_dict, aggregated_weight_matrix, decoding_layer,normalize)
+        aux = generate_histo_mat_per_dec_layer(
+            result_dict, aggregated_weight_matrix, decoding_layer, normalize)
         # Calculating the output and storing it in the array Z
 
         x = np.arange(0, aux.shape[0], 1)
@@ -373,9 +385,11 @@ def histo_simp_per_dec_layer(result_dict, aggregated_weight_matrix, normalize=Fa
 
         Z = aux[X, Y]
 
-        ax = fig.add_subplot(spec[decoding_layer//(decoding_layers//2), decoding_layer % (decoding_layers//2)])
+        ax = fig.add_subplot(
+            spec[decoding_layer//(decoding_layers//2), decoding_layer % (decoding_layers//2)])
 
-        im = ax.imshow(Z, cmap='hot', extent=(0, aux.shape[0], aux.shape[1], 0), aspect='auto')  # , interpolation='bilinear')
+        im = ax.imshow(Z, cmap='hot', extent=(
+            0, aux.shape[0], aux.shape[1], 0), aspect='auto')  # , interpolation='bilinear')
 
         bar = plt.colorbar(im)
         bar.set_label('Occurrences')
@@ -383,16 +397,19 @@ def histo_simp_per_dec_layer(result_dict, aggregated_weight_matrix, normalize=Fa
         ax.set_title(r"Decoding layer: $%d$" % (decoding_layer))
         ax.set_ylabel('Paragraph number')
         ax.set_xlabel('Generated Sentence')
-        
+
     if normalize:
-        fig.suptitle("Attended paragraph position (normalized) over decoding layers")
+        fig.suptitle(
+            "Attended paragraph position (normalized) over decoding layers")
     else:
         fig.suptitle("Attended paragraph position over decoding layers")
 
     if save:
         if normalize:
-            plt.savefig('saved_figs/overall_norm_distri_dec_layer.svg', facecolor="white")
+            plt.savefig(
+                'saved_figs/overall_norm_distri_dec_layer.svg', facecolor="white")
         else:
-            plt.savefig('saved_figs/overall_distri_dec_layer.svg', facecolor="white")
+            plt.savefig('saved_figs/overall_distri_dec_layer.svg',
+                        facecolor="white")
 
     plt.show()
