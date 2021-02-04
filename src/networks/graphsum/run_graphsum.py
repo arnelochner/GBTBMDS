@@ -633,10 +633,9 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                             # print("Data_idx: %d" % (data_idx))
                             # tmp.append((hyp_str, score))
 
-                            if j == 0:
-                                dec_out[data_id] = (hyp_str, score)
+                            dec_out[data_id] = (hyp_str, score)
 
-                            # break
+                            break
                         data_idx += 1
 
         except fluid.core.EOFException:
