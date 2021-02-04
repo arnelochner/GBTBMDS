@@ -616,6 +616,10 @@ class SummData(object):
             src_token_ids = [list(group) + [11] for l in src_token_ids for k,
                              group in groupby(l, lambda x: x == 11) if not k]
 
+            src_filtered_short = [self.spm.decode_ids(sent) for sent in src_token_ids]
+
+        
+
         tgt_sents = sent_tokenize(tgt)
         tgt_sents_ids = [self.spm.encode_as_ids(sent) for sent in tgt_sents]
         tgt_token_ids = [self.symbols['BOS']] + sum([p + [self.symbols['EOQ']] for p in tgt_sents_ids], [])[:-1] + \
@@ -629,7 +633,7 @@ class SummData(object):
                                     'total_words_short'])
 
         return res(src_token_ids=src_token_ids, tgt_token_ids=tgt_token_ids,
-                   src_filtered=src_filtered, original_src_txt=original_src_txt,
+                   src_filtered=src_filtered_short, original_src_txt=original_src_txt,
                    tgt_txt=tgt_txt, src_filtered_len=len(src_filtered_short),
                    total_words_short=total_words_short)
 
