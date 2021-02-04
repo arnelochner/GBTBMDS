@@ -10,11 +10,12 @@ python -u ./src/data_preprocess/graphsum/preprocess_graphsum_data.py \
                -vocab_path "./data/spm9998_3.model" \
                -train_src "../multi-news-processed/train.txt.src" \
                -train_tgt "../multi-news-processed/train.txt.tgt" \
-               -valid_src "../multi-news-processed/valid.txt.src" \
-               -valid_tgt "../multi-news-processed/valid.txt.tgt" \
+               -valid_src "../multi-news-processed/val.txt.src" \
+               -valid_tgt "../multi-news-processed/val.txt.tgt" \
                -test_src "../multi-news-processed/test.txt.src" \
                -test_tgt "../multi-news-processed/test.txt.tgt" \
-               -num_examples 1 \
+               -num_examples 2 \
+               -max_nsents 30 \
                -dataset "test"\
-               -sentence_level False\
+               -sentence_level True\
                -sim_function "tf-idf" > log/preprocess.log 2>&1

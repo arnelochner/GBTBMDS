@@ -24,6 +24,7 @@ from multiprocessing import Pool
 import multiprocessing.pool
 import numpy as np
 from collections import defaultdict
+from itertools import groupby
 
 import sentencepiece
 from gensim import corpora, models, similarities
@@ -112,9 +113,6 @@ def _format_to_json(params):
     for doc_str in docs_strs:
         # split into sentences
         doc_lines = doc_str.strip().split('     ')
-        if args.sentence_level:
-            doc_lines = [
-                sent for para in doc_lines for sent in para.split(".")]
         # split each sentence into tokens and remove empty sentence
         doc_sents = [sent.strip().replace(r' +', ' ').split()
                      for sent in doc_lines if sent.strip() != '']
@@ -593,6 +591,7 @@ class SummData(object):
 
         src_filtered = []
         for doc in docs_filtered:
+
             src_filtered.extend(doc)
 
         total_words = sum([len(sent) for sent in src_filtered])
@@ -612,6 +611,10 @@ class SummData(object):
         original_src_txt = [' '.join(sent) for sent in src_filtered]
 
         src_token_ids = [self.spm.encode_as_ids(sent) for sent in src_txt]
+
+        if self.args.sentence_level:
+            src_token_ids = [list(group) + [11] for l in src_token_ids for k,
+                             group in groupby(l, lambda x: x == 11) if not k]
 
         tgt_sents = sent_tokenize(tgt)
         tgt_sents_ids = [self.spm.encode_as_ids(sent) for sent in tgt_sents]
