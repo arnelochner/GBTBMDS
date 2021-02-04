@@ -14,8 +14,6 @@ python -u ./src/data_preprocess/graphsum/preprocess_graphsum_data.py \
                -valid_tgt "../multi-news-processed/val.txt.tgt" \
                -test_src "../multi-news-processed/test.txt.src" \
                -test_tgt "../multi-news-processed/test.txt.tgt" \
-               -num_examples 2 \
                -max_nsents 30 \
-               -dataset "test"\
                -sentence_level True\
                -sim_function "tf-idf" > log/preprocess.log 2>&1

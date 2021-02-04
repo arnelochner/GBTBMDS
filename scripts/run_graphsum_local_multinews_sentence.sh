@@ -35,8 +35,8 @@ check_iplist
 distributed_args="--node_ips ${PADDLE_TRAINERS} \
                 --node_id ${PADDLE_TRAINER_ID} \
                 --current_node_ip ${POD_IP} \
-                --selected_gpus 1,2,3,5 \
-                --nproc_per_node 4"
+                --selected_gpus 1,2,3 \
+                --nproc_per_node 3"
 
 python3 -u ./src/launch.py ${distributed_args} \
     ./src/run.py --model_name "graphsum" \
@@ -50,10 +50,10 @@ python3 -u ./src/launch.py ${distributed_args} \
                --weight_sharing true \
                --do_train true \
                --do_val false \
-               --do_test false \
+               --do_test true \
                --do_dec true \
                --verbose true \
-               --batch_size 4096 \
+               --batch_size 1000 \
                --in_tokens true \
                --stream_job ${STREAM_JOB:-""} \
                --init_pretraining_params ${MODEL_PATH:-""} \
@@ -61,7 +61,7 @@ python3 -u ./src/launch.py ${distributed_args} \
                --dev_set ${TASK_DATA_PATH}/valid \
                --test_set ${TASK_DATA_PATH}/test \
                --vocab_path ${VOCAB_PATH} \
-               --config_path model_config/graphsum_config.json \
+               --config_path model_config/graphsum_model_conf_local_multinews_sentences.json \
                --checkpoints ./models/graphsum_multinews_sentences \
                --decode_path ./results/graphsum_multinews_sentences \
                --lr_scheduler ${lr_scheduler} \
@@ -74,7 +74,7 @@ python3 -u ./src/launch.py ${distributed_args} \
                --max_para_len 60 \
                --max_tgt_len 300 \
                --max_out_len 300 \
-               --min_out_len 300 \
+               --min_out_len 200 \
                --graph_type "similarity" \
                --len_penalty 0.6 \
                --block_trigram False \

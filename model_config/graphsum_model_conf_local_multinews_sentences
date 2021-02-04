@@ -2,7 +2,7 @@ task="GraphSum_MDS"
 
 VOCAB_PATH="./data/spm9998_3.model"
 CONFIG_PATH="./model_config/graphsum_config.json"
-TASK_DATA_PATH="../data/MultiNews_data_tfidf_paddle_sentence"
+TASK_DATA_PATH="../data/MultiNews_data_tfidf_30_paddle_full_sentence"
 
 #model_based
 lr_scheduler="noam_decay"
