@@ -61,7 +61,7 @@ python3 -u ./src/launch.py ${distributed_args} \
                --dev_set ${TASK_DATA_PATH}/valid \
                --test_set ${TASK_DATA_PATH}/test \
                --vocab_path ${VOCAB_PATH} \
-               --config_path model_config/graphsum_model_conf_local_multinews_sentences.json \
+               --config_path model_config/graphsum_config.json \
                --checkpoints ./models/graphsum_multinews_sentences \
                --decode_path ./results/graphsum_multinews_sentences \
                --lr_scheduler ${lr_scheduler} \
