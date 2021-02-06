@@ -1,18 +1,24 @@
-# %%
 import codecs
 import json
 import os
 import shutil
 import time
+from itertools import groupby
 from multiprocessing import Pool
 
+import numpy as np
+import sentencepiece
+
 import pyrouge
-from tools.cal_rouge import chunks, process
-import re
+from tools.cal_rouge import chunks
 
 
 def process_sequential(data):
-    """process the data to build files for ROUGE evaluation"""
+    """
+    Calculate rouge score between two sentences. Lists of sentences are evaluate sequentially.
+    @param data: (candidate_list, reference_list, pool_id)
+    @return: list of rouge score dictionaries
+    """
     candidates, references, pool_id, debug = data
     cnt = len(candidates)
     current_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
@@ -95,11 +101,15 @@ def calculate_rouge(summary, paragraphs):
 
 def zip_data(summaries, paragraphs):
     """
-    summaries: [example, sentences]
-    paragraphs: [example, paragraph, sentences]
+    Combines each sentence of all summaries with each sentence of the corresponding input paragraphs.
+
+    @param summaries list of summaries of form [example, sentences]
+    @param paragraphs: list of input paragraphs [example, paragraph, sentences]
+    @return: two lists of sentences
     """
     left_list = []
     right_list = []
+
     max_summary_sen = 0
     num_examples = len(summaries)
     for e, summary in enumerate(summaries):
@@ -111,6 +121,18 @@ def zip_data(summaries, paragraphs):
                     left_list.append(summary_sentence)
                     right_list.append(paragraph_sentence)
     return left_list, right_list, max_summary_sen, num_examples
+
+
+def extract_meta(summaries, paragraphs):
+    result_meta = []
+    for e, summary in enumerate(summaries):
+        meta = {
+            "summary_sentences": len(summaries[e]),
+            "paragraphs": len(paragraphs[e]),
+            "paragraph_sentences": [len(para_sent) for para_sent in paragraphs[e]]
+        }
+        result_meta.append(meta)
+    return result_meta
 
 
 # result = calculate_rouge("hallo wie gehts", ["hallo ich bin doof", "autobahn", "kekse"])
@@ -141,26 +163,23 @@ def stuff(can_path, input_paragraphs, split_paragraphs=False):
     return scores
 
 
-can_path = "results/graphsum_multinews/test_final_preds.candidate"
-input_paragraphs = "data/MultiNews_data_tfidf_paddle_paragraph_small/test/MultiNews.30.test.0.json"
-
 # results = stuff(can_path, input_paragraphs, split_paragraphs=True)
 # with open('rouge_slow.json', 'w') as f:
 #    json.dump(results, f)
 
 
-import codecs
-import sentencepiece
-import re
-from itertools import groupby
-import numpy as np
-
-def tokenize():
+def tokenize(can_path="results/graphsum_multinews/test_final_preds.candidate",
+             input_paragraphs="data/MultiNews_data_tfidf_paddle_paragraph_small/test/MultiNews.30.test.0.json",
+             spm_path="data/spm9998_3.model"):
+    """
+    Uses spm model to tokenize input paragraphs and generated summaries. Results are strings (concatenated tokens).
+    @param can_path: path where summaries are stored
+    @param input_paragraphs: path were input paragraphs are stored
+    @param spm_path: path to spm model
+    @return: tuple of tokenized summaries and tokenized input paragraphs
+    """
     spm = sentencepiece.SentencePieceProcessor()
-    spm.load("data/spm9998_3.model")
-
-    can_path = "results/graphsum_multinews/test_final_preds.candidate"
-    input_paragraphs = "data/MultiNews_data_tfidf_paddle_paragraph_small/test/MultiNews.30.test.0.json"
+    spm.load(spm_path)
     candidates = codecs.open(can_path, encoding="utf-8")
     candidates = [line.strip() for line in candidates]
 
@@ -190,8 +209,16 @@ def tokenize():
 
 def transform_results(summaries, paragraphs, rouge_scores, num_examples, max_sum_sen):
     """
-    summaries: [example, sentences]
-    paragraphs: [example, paragraph, sentences]
+    Uses summaries, paragraphs and rouge results to generate numpy array. Input summaries and paragraphs are
+    necessary to assign each rouge score to the right sentences.
+
+    @param summaries: [example, sentences]
+    @param paragraphs: [example, paragraph, sentences]
+    @param rouge_scores: list of rouge score dictionaries
+    @param num_examples: total number of examples
+    @param max_sum_sen: maximal number of sentences in summary
+    @return: numpy array of shape (num_examples, num_paragrapgs, num_paragraph_sen, max_sum_sen, 3)
+             where the last dimension contains ROUGE-1, ROUGE-2 and ROUGE-L
     """
     num_paragraphs = 30
     num_paragraph_sen = 30
@@ -210,6 +237,13 @@ def transform_results(summaries, paragraphs, rouge_scores, num_examples, max_sum
 
 
 def extract_rouge(tokenized_summaries, tokenized_paragraphs):
+    """
+    Generates ROUGE scores between each sentence of each summary and each sentence of the corresponding paragraphs.
+
+    @param tokenized_summaries:
+    @param tokenized_paragraphs:
+    @return: ROUGE scores (numpy array)
+    """
     (left, right, max_sum_sen, num_examples) = zip_data(tokenized_summaries, tokenized_paragraphs)
     results = test_rouge(left, right, 12, False)
     results = transform_results(tokenized_summaries, tokenized_paragraphs, results, num_examples, max_sum_sen)
@@ -219,6 +253,12 @@ def extract_rouge(tokenized_summaries, tokenized_paragraphs):
 # with open('rouge.p', 'wb') as fp:
 #    pickle.dump(results, fp)
 
-sum, para = tokenize()
-results = extract_rouge(sum, para)
-np.save("rouge_full", results)
+if __name__ == "__main__":
+    can_path = "results/graphsum_multinews/test_final_preds.candidate"
+    input_paragraphs = "data/MultiNews_data_tfidf_paddle_paragraph_small/test/MultiNews.30.test.0.json"
+
+    summaries, paragraphs = tokenize(can_path=can_path, input_paragraphs=input_paragraphs)
+  #  results = extract_rouge(summaries, paragraphs)
+   # np.save("rouge_full", results)
+    meta = extract_meta(summaries, paragraphs)
+    json.dump(meta, open("rouge_meta.json", "w"))
