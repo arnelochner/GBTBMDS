@@ -143,7 +143,7 @@ def main(args):
         with fluid.program_guard(train_program, startup_prog):
             with fluid.unique_name.guard():
                 train_pyreader, graph_vars = graphsum.create_model(
-                    pyreader_name=get_random_string(20), corpus_type="train")
+                    pyreader_name=get_random_string(20))
                 scheduled_lr, _ = optimization(
                     loss=graph_vars["loss"],
                     warmup_steps=warmup_steps,
