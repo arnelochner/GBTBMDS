@@ -10,7 +10,7 @@ import codecs
 
 def process(data):
     """process the data to build files for ROUGE evaluation"""
-    candidates, references, pool_id = data
+    candidates, references, pool_id, debug = data
     cnt = len(candidates)
     current_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
     tmp_dir = "rouge-tmp-{}-{}".format(current_time, pool_id)
@@ -30,13 +30,14 @@ def process(data):
                       encoding="utf-8") as f:
                 f.write(references[i])
 
-        r = pyrouge.Rouge155("./pyrogue/tools/ROUGE-1.5.5/")
+        r = pyrouge.Rouge155("./pyrouge/rouge/tools/ROUGE-1.5.5/")
         r.model_dir = tmp_dir + "/reference/"
         r.system_dir = tmp_dir + "/candidate/"
         r.model_filename_pattern = 'ref.#ID#.txt'
         r.system_filename_pattern = r'cand.(\d+).txt'
         rouge_results = r.convert_and_evaluate()
-        print(rouge_results)
+        if debug:
+            print(rouge_results)
         results_dict = r.output_to_dict(rouge_results)
 
     finally:
@@ -52,15 +53,15 @@ def chunks(l, n):
         yield l[i:i + n]
 
 
-def test_rouge(cand, ref, num_processes):
+def test_rouge(cand, ref, num_processes, debug=True):
     """Calculate ROUGE scores of sequences passed as an iterator
        e.g. a list of str, an open file, StringIO or even sys.stdin
     """
     candidates = [line.strip() for line in cand]
     references = [line.strip() for line in ref]
-
-    print('Num of candidates: %d' % len(candidates))
-    print('Num of references: %d' % len(references))
+    if debug:
+        print('Num of candidates: %d' % len(candidates))
+        print('Num of references: %d' % len(references))
     assert len(candidates) == len(references), "!!!!!!! Note: The number of candidates is " \
                                                "not equal to the number of references!!!!!!!"
 
@@ -72,7 +73,7 @@ def test_rouge(cand, ref, num_processes):
     n_pool = len(candidates_chunks)
     arg_lst = []
     for i in range(n_pool):
-        arg_lst.append((candidates_chunks[i], references_chunks[i], i))
+        arg_lst.append((candidates_chunks[i], references_chunks[i], i, debug))
 
     pool = Pool(n_pool)
     results = pool.imap(process, arg_lst)
