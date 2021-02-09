@@ -183,6 +183,8 @@ def _format_to_paddle(params):
         total_words += word_num
         total_docs += 1
 
+        print(src_tokens)
+
         if args.sim_function == "tf-idf":
             sim_graph, larger_s, sum_s = construct_tfidf_sim_graph_by_gensim(
                 src_tokens, args)
@@ -607,6 +609,7 @@ class SummData(object):
         # truncate too long sentence
         src_filtered_short = [sent[:self.args.max_src_ntokens]
                               for sent in src_filtered]
+
         src_txt = [' '.join(sent) for sent in src_filtered_short]
         original_src_txt = [' '.join(sent) for sent in src_filtered]
 
@@ -616,9 +619,8 @@ class SummData(object):
             src_token_ids = [list(group) + [11] for l in src_token_ids for k,
                              group in groupby(l, lambda x: x == 11) if not k]
 
-            src_filtered_short = [self.spm.decode_ids(sent) for sent in src_token_ids]
-
-        
+            src_filtered_short = [[self.spm.decode_ids(
+                [token]) for token in sent] for sent in src_token_ids]
 
         tgt_sents = sent_tokenize(tgt)
         tgt_sents_ids = [self.spm.encode_as_ids(sent) for sent in tgt_sents]
