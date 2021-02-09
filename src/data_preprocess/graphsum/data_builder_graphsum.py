@@ -183,8 +183,6 @@ def _format_to_paddle(params):
         total_words += word_num
         total_docs += 1
 
-        print(src_tokens)
-
         if args.sim_function == "tf-idf":
             sim_graph, larger_s, sum_s = construct_tfidf_sim_graph_by_gensim(
                 src_tokens, args)
