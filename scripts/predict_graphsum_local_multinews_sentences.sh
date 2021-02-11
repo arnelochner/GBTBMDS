@@ -8,7 +8,7 @@ source ./model_config/graphsum_model_conf_local_multinews_sentences
 export FLAGS_eager_delete_tensor_gb=1.0
 export FLAGS_sync_nccl_allreduce=1
 export FLAGS_fraction_of_gpu_memory_to_use=0.98
-export CUDA_VISIBLE_DEVICES="1"
+
 
 
 python -u ./src/run.py \
@@ -36,8 +36,8 @@ python -u ./src/run.py \
                --vocab_path ${VOCAB_PATH} \
                --config_path model_config/graphsum_config.json \
                --checkpoints ./models/graphsum_multinews_sentences \
-               --init_checkpoint ./models/graphsum_multinews_sentences/step_42976 \
-               --decode_path ./results/graphsum_multinews \
+               --init_checkpoint ./models/graphsum_multinews_sentences_50_epoch_training/step_702946 \
+               --decode_path ./results/graphsum_multinews_sentences_50_epoch \
                --lr_scheduler ${lr_scheduler} \
                --save_steps 10000 \
                --weight_decay ${WEIGHT_DECAY} \
@@ -60,5 +60,5 @@ python -u ./src/run.py \
                --pos_win 2.0 \
                --label_smooth_eps 0.1 \
                --num_iteration_per_drop_scope 10 \
-               --log_file "log/graphsum_multinews_test_sentences.log" \
-               --random_seed 1 > log/lanch_predict_sentences.log 2>&1
+               --log_file "log/graphsum_multinews_test_sentences_50_epoch.log" \
+               --random_seed 1 > log/lanch_predict_sentences_50_epoch.log 2>&1

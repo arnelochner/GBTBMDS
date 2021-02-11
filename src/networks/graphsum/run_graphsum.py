@@ -61,7 +61,7 @@ def main(args):
     model_config = GraphSumConfig(args.config_path)
     model_config.print_config()
 
-    gpu_id = 0
+    gpu_id = 1
     gpus = fluid.core.get_cuda_device_count()
     if args.is_distributed:
         gpus = os.getenv("FLAGS_selected_gpus").split(",")
