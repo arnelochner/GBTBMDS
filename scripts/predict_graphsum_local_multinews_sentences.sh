@@ -32,7 +32,7 @@ python -u ./src/run.py \
                --init_pretraining_params ${MODEL_PATH:-""} \
                --train_set ${TASK_DATA_PATH}/train \
                --dev_set ${TASK_DATA_PATH}/valid \
-               --test_set ${TASK_DATA_PATH}/local_test \
+               --test_set ${TASK_DATA_PATH}/test \
                --vocab_path ${VOCAB_PATH} \
                --config_path model_config/graphsum_config.json \
                --checkpoints ./models/graphsum_multinews_sentences \

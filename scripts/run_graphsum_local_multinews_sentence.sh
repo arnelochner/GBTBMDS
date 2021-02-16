@@ -50,10 +50,10 @@ python3 -u ./src/launch.py ${distributed_args} \
                --weight_sharing true \
                --do_train true \
                --do_val false \
-               --do_test true \
+               --do_test false \
                --do_dec true \
                --verbose true \
-               --batch_size 1000 \
+               --batch_size 512 \
                --in_tokens true \
                --stream_job ${STREAM_JOB:-""} \
                --init_pretraining_params ${MODEL_PATH:-""} \
@@ -62,14 +62,14 @@ python3 -u ./src/launch.py ${distributed_args} \
                --test_set ${TASK_DATA_PATH}/test \
                --vocab_path ${VOCAB_PATH} \
                --config_path model_config/graphsum_config.json \
-               --checkpoints ./models/graphsum_multinews_sentences \
-               --decode_path ./results/graphsum_multinews_sentences \
+               --checkpoints ./models/graphsum_multinews_sentences_50_epoch_training \
+               --decode_path ./results/graphsum_multinews_sentences_50_epoch_training \
                --lr_scheduler ${lr_scheduler} \
-               --save_steps 10000 \
+               --save_steps 100000 \
                --weight_decay ${WEIGHT_DECAY} \
                --warmup_steps ${WARMUP_STEPS} \
-               --validation_steps 20000 \
-               --epoch 10 \
+               --validation_steps 200000 \
+               --epoch 50 \
                --max_para_num 100 \
                --max_para_len 60 \
                --max_tgt_len 300 \
@@ -85,5 +85,5 @@ python3 -u ./src/launch.py ${distributed_args} \
                --pos_win 2.0 \
                --label_smooth_eps 0.1 \
                --num_iteration_per_drop_scope 10 \
-               --log_file "log/graphsum_multinews_sentences.log" \
-               --random_seed 1 > log/launch_sentences.log 2>&1
+               --log_file "log/graphsum_multinews_sentences_50_epoch.log" \
+               --random_seed 1 > log/launch_sentences_50_epoch.log 2>&1
