@@ -8,7 +8,6 @@ source ./model_config/graphsum_model_conf_local_multinews_paragraphs
 export FLAGS_eager_delete_tensor_gb=1.0
 export FLAGS_sync_nccl_allreduce=1
 export FLAGS_fraction_of_gpu_memory_to_use=0.98
-export CUDA_VISIBLE_DEVICES="1"
 
 
 python -u ./src/run.py \
@@ -32,12 +31,12 @@ python -u ./src/run.py \
                --init_pretraining_params ${MODEL_PATH:-""} \
                --train_set ${TASK_DATA_PATH}/train \
                --dev_set ${TASK_DATA_PATH}/valid \
-               --test_set ${TASK_DATA_PATH}/local_test \
+               --test_set ${TASK_DATA_PATH}/test \
                --vocab_path ${VOCAB_PATH} \
                --config_path model_config/graphsum_config.json \
-               --checkpoints ./models/graphsum_multinews \
-               --init_checkpoint ./models/graphsum_multinews/step_42976 \
-               --decode_path ./results/graphsum_multinews \
+               --checkpoints ./models/graphsum_multinews_paragraph \
+               --init_checkpoint ./models/graphsum_multinews_paragraphs_50_epoch_training/step_702946 \
+               --decode_path ./results/graphsum_multinews_paragraph_50_epoch \
                --lr_scheduler ${lr_scheduler} \
                --save_steps 10000 \
                --weight_decay ${WEIGHT_DECAY} \
