@@ -168,6 +168,8 @@ def _format_to_paddle(params):
     total_larger = 0.
     total_sum = 0.
     datasets = []
+    total_num_sentences = 0
+    total_pruned_sentences = 0
     for d in jobs:
         source, tgt = d['src'], d['tgt']
         b_data = summ_data.preprocess(source, tgt)
@@ -178,6 +180,14 @@ def _format_to_paddle(params):
             b_data.src_token_ids, b_data.tgt_token_ids, b_data.src_filtered, \
             b_data.original_src_txt, b_data.tgt_txt, b_data.src_filtered_len, \
             b_data.total_words_short
+
+        
+        if args.do_pruning:
+            src_tokens, num_sentences, number_of_sentences_pruned = prune_input(src_tokens, args.pruning_low_threshold, args.pruning_high_threshold, args.num_tokens_sentence)
+            total_num_sentences += num_sentences
+            total_pruned_sentences += number_of_sentences_pruned
+        
+
 
         total_sens += sen_num
         total_words += word_num
@@ -210,6 +220,9 @@ def _format_to_paddle(params):
     print('Saving to %s' % save_file)
     print('total_docs:%s    total_sens:%s    toatl_words:%s' %
           (total_docs, total_sens, total_words))
+    
+    if args.do_pruning:
+        print('percentage_pruned: %.3f' % (total_pruned_sentences / total_num_sentences))
     print('#sen/doc:%s    #word/doc:%s    #word/sen:%s' % (
         total_sens / total_docs, total_words / total_docs, total_words / total_sens))
     print('The ratio of similarity larger than %s is %s' %
@@ -220,6 +233,59 @@ def _format_to_paddle(params):
     datasets = []
     gc.collect()
 
+
+def prune_input(corpus, pruning_low_threshold, pruning_high_threshold, num_tokens_sentence):
+    raw_corpus = [' '.join(para) for para in corpus]
+       
+    # create English stop words list
+    stoplist = set(stopwords.words('english'))
+    
+    # Create p_stemmer of class PorterStemmer
+    p_stemmer = PorterStemmer()
+
+    # Lowercase each document, split it by white space and filter out stopwords
+    texts = [[word for word in para.lower().split() if word not in stoplist]
+             for para in raw_corpus]
+    # Create a set of frequent words
+    frequency = defaultdict(int)
+    for text in texts:
+        for token in text:
+            frequency[token] += 1
+
+    # stem each word
+    processed_corpus = [[p_stemmer.stem(
+        token) for token in text if frequency[token] > 1] for text in texts]
+   
+    dictionary = corpora.Dictionary(processed_corpus)
+    bow_corpus = [dictionary.doc2bow(text) for text in processed_corpus]
+
+    # train the model
+    tfidf = models.TfidfModel(bow_corpus)
+    # transform the "system minors" string
+    corpus_tfidf = tfidf[bow_corpus]
+
+    index = similarities.SparseMatrixSimilarity(
+        corpus_tfidf, num_features=len(dictionary))
+    
+    to_remove = []
+    for i, cor in enumerate(corpus_tfidf):
+        sim = index[cor]
+        sim_to_other_values = np.mean(sim)
+        if (len(processed_corpus[i]) < num_tokens_sentence) or (sim_to_other_values < pruning_low_threshold) or (sim_to_other_values > pruning_high_threshold):
+            #print("The corpus_tfidf[i] is None: %d" % i)
+            #print(bow_corpus[i])
+            to_remove.append(i)
+            # exit(1)
+
+    
+    valid_indexes = [x for x in range(len(corpus_tfidf)) if x not in to_remove]
+
+    number_of_sentences = len(corpus_tfidf)
+
+    number_of_sentences_pruned = number_of_sentences - len(valid_indexes)
+    
+    return [sent for i,sent in enumerate(corpus) if i in valid_indexes], number_of_sentences, number_of_sentences_pruned
+    
 
 def construct_tfidf_sim_graph(sents, args):
     """Constuct TFIDF similarity graph"""
@@ -317,11 +383,6 @@ def construct_tfidf_sim_graph_by_gensim(corpus, args):
     # transform the "system minors" string
     corpus_tfidf = tfidf[bow_corpus]
 
-    for i, cor in enumerate(corpus_tfidf):
-        if len(cor) == 0:
-            print("The corpus_tfidf[i] is None: %s" % str(corpus_tfidf[i]))
-            print(bow_corpus[i])
-            # exit(1)
 
     index = similarities.SparseMatrixSimilarity(
         corpus_tfidf, num_features=len(dictionary))
@@ -338,7 +399,7 @@ def construct_tfidf_sim_graph_by_gensim(corpus, args):
             if s > args.sim_threshold:
                 count_large += 1
 
-    print("sim_graph[0]: %s" % str(sim_graph[0]))
+    #print("sim_graph[0]: %s" % str(sim_graph[0]))
 
     return sim_graph, count_large, total
 

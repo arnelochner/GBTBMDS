@@ -72,6 +72,13 @@ if __name__ == '__main__':
     parser.add_argument('-max_src_ntokens', default=100, type=int)
     parser.add_argument('-sim_threshold', default=0.05, type=float)
 
+
+    parser.add_argument('-do_pruning', default=False, type=str2bool)
+    parser.add_argument('-pruning_low_threshold', default=0.05, type=float)
+    parser.add_argument('-pruning_high_threshold', default=0.15, type=float)
+    parser.add_argument('-num_tokens_sentence', default=3, type=int)
+    
+
     parser.add_argument('-sentence_level', default=False, type=str2bool)
 
     parser.add_argument("-lower", type=str2bool, nargs='?',
