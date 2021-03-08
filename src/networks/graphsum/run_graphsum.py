@@ -61,7 +61,7 @@ def main(args):
     model_config = GraphSumConfig(args.config_path)
     model_config.print_config()
 
-    gpu_id = 1
+    gpu_id = 2
     gpus = fluid.core.get_cuda_device_count()
     if args.is_distributed:
         gpus = os.getenv("FLAGS_selected_gpus").split(",")
@@ -625,7 +625,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                                 replace('<T>', '').replace(
                                 '<PAD>', '').replace('⁇', '"')
                             hyp_str = re.sub('\\s+', ' ', hyp_str)
-                            print(hyp_str)
+                            # print(hyp_str)
 
                             score = np.array(seq_scores)[sub_end - 1]
 
