@@ -333,6 +333,7 @@ def histo_simp(result_dict, aggregated_weight_matrix, normalize=False, plot=True
     ax.set_ylabel('Paragraph number')
     ax.set_xlabel('Generated Sentence')
     if plot:
+        plt.savefig("hist_simp_positional_bias.pdf")
         plt.show()
     else:
         return ax
