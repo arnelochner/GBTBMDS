@@ -3,10 +3,10 @@ set -eux
 
 source ./env_local/env_local.sh
 source ./env_local/utils.sh
-source ./model_config/graphsum_model_conf_local_multinews_sentences
+source ./model_config/graphsum_model_conf_local_multinews_sentences_pruned
 
-if [ ! -d log/rq1_sentences  ];then
-  mkdir log/rq1_sentences
+if [ ! -d log/rq1_pruning_sentences  ];then
+  mkdir log/rq1_pruning_sentences
 else
   echo log exist
 fi
@@ -36,7 +36,7 @@ distributed_args="--node_ips ${PADDLE_TRAINERS} \
                 --node_id ${PADDLE_TRAINER_ID} \
                 --current_node_ip ${POD_IP} \
                 --selected_gpus 1,3,5 \
-                --split_log_path 'log/rq1_sentences' \
+                --split_log_path 'log/rq1_pruning_sentences' \
                 --nproc_per_node 3"
 
 python3 -u ./src/launch.py ${distributed_args} \
@@ -63,8 +63,8 @@ python3 -u ./src/launch.py ${distributed_args} \
                --test_set ${TASK_DATA_PATH}/test \
                --vocab_path ${VOCAB_PATH} \
                --config_path model_config/graphsum_config.json \
-               --checkpoints ./models/rq1_sentence_batch_size_3000 \
-               --decode_path ./results/rq1_sentence_batch_size_3000 \
+               --checkpoints ./models/rq1_sentence_pruning_batch_size_3000 \
+               --decode_path ./results/rq1_sentence_pruning_batch_size_3000 \
                --lr_scheduler ${lr_scheduler} \
                --save_steps 74500 \
                --weight_decay ${WEIGHT_DECAY} \
@@ -86,5 +86,5 @@ python3 -u ./src/launch.py ${distributed_args} \
                --pos_win 2.0 \
                --label_smooth_eps 0.1 \
                --num_iteration_per_drop_scope 10 \
-               --log_file "log/rq1_sentences/rq1_sentence_batch_size_3000.log" \
-               --random_seed 1 > log/rq1_sentences/launch_rq1_sentence_batch_size_3000.log 2>&1
+               --log_file "log/rq1_pruning_sentences/rq1_sentence_pruning_batch_size_3000.log" \
+               --random_seed 1 > log/rq1_pruning_sentences/launch_rq1_sentence_pruning_batch_size_3000.log 2>&1

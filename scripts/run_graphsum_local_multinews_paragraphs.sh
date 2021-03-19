@@ -5,8 +5,8 @@ source ./env_local/env_local.sh
 source ./env_local/utils.sh
 source ./model_config/graphsum_model_conf_local_multinews_paragraphs
 
-if [ ! -d log  ];then
-  mkdir log
+if [ ! -d log/rq1_paragraphs  ];then
+  mkdir log/rq1_paragraphs
 else
   echo log exist
 fi
@@ -35,7 +35,8 @@ check_iplist
 distributed_args="--node_ips ${PADDLE_TRAINERS} \
                 --node_id ${PADDLE_TRAINER_ID} \
                 --current_node_ip ${POD_IP} \
-                --selected_gpus 1,2,3 \
+                --selected_gpus 1,3,5 \
+                --split_log_path 'log/rq1_paragraphs' \
                 --nproc_per_node 3"
 
 python3 -u ./src/launch.py ${distributed_args} \
@@ -49,27 +50,27 @@ python3 -u ./src/launch.py ${distributed_args} \
                --init_loss_scaling ${loss_scaling:-128} \
                --weight_sharing true \
                --do_train true \
-               --do_val false \
-               --do_test false \
+               --do_val true \
+               --do_test true \
                --do_dec true \
                --verbose true \
-               --batch_size 512 \
+               --batch_size 3000 \
                --in_tokens true \
                --stream_job ${STREAM_JOB:-""} \
                --init_pretraining_params ${MODEL_PATH:-""} \
                --train_set ${TASK_DATA_PATH}/train \
-               --dev_set ${TASK_DATA_PATH}/valid \
+               --dev_set ${TASK_DATA_PATH}/small_valid \
                --test_set ${TASK_DATA_PATH}/test \
                --vocab_path ${VOCAB_PATH} \
                --config_path model_config/graphsum_config.json \
-               --checkpoints ./models/graphsum_multinews_paragraphs_50_epoch_training \
-               --decode_path ./results/graphsum_multinews_paragraphs_50_epoch_training \
+               --checkpoints ./models/rq1_para_batch_size_3000 \
+               --decode_path ./results/rq1_para_batch_size_3000 \
                --lr_scheduler ${lr_scheduler} \
-               --save_steps 100000 \
+               --save_steps 74500 \
                --weight_decay ${WEIGHT_DECAY} \
                --warmup_steps ${WARMUP_STEPS} \
-               --validation_steps 20000 \
-               --epoch 50 \
+               --validation_steps 14900 \
+               --epoch 100 \
                --max_para_num 30 \
                --max_para_len 60 \
                --max_tgt_len 300 \
@@ -77,7 +78,7 @@ python3 -u ./src/launch.py ${distributed_args} \
                --min_out_len 200 \
                --graph_type "similarity" \
                --len_penalty 0.6 \
-               --block_trigram False \
+               --block_trigram true \
                --report_rouge true \
                --learning_rate ${LR_RATE} \
                --skip_steps 100 \
@@ -85,5 +86,5 @@ python3 -u ./src/launch.py ${distributed_args} \
                --pos_win 2.0 \
                --label_smooth_eps 0.1 \
                --num_iteration_per_drop_scope 10 \
-               --log_file "log/graphsum_multinews_paragraph_50_epoch.log" \
-               --random_seed 1 > log/launch_paragraphs_50_epoch.log 2>&1
+               --log_file "log/rq1_paragraphs/rq1_para_batch_size_3000.log" \
+               --random_seed 1 > log/rq1_paragraphs/launch_rq1_para_batch_size_3000.log 2>&1
