@@ -367,7 +367,7 @@ def main(args):
                                          "dev"),
                                      decode_path=args.decode_path + "/valid_" + str(steps) + "_preds")
                         # evaluate test set
-                        if args.do_test:
+                        """if args.do_test:
                             test_pyreader.decorate_tensor_provider(
                                 reader.data_generator(
                                     args.test_set,
@@ -383,7 +383,7 @@ def main(args):
                                      vocab_size=vocab_size, do_dec=args.do_dec,
                                      vocab_path=args.vocab_path, features=reader.get_features(
                                          "test"),
-                                     decode_path=args.decode_path + "/test_" + str(steps) + "_preds")
+                                     decode_path=args.decode_path + "/test_" + str(steps) + "_preds")"""
 
             except fluid.core.EOFException:
                 save_path = os.path.join(
@@ -393,7 +393,7 @@ def main(args):
                 break
     if nccl2_trainer_id == 0:
         # final eval on dev set
-        if args.do_val:
+        """if args.do_val:
             test_pyreader.decorate_tensor_provider(
                 reader.data_generator(
                     args.dev_set,
@@ -410,7 +410,7 @@ def main(args):
                      vocab_size=vocab_size, do_dec=args.do_dec,
                      vocab_path=args.vocab_path, features=reader.get_features(
                          "dev"),
-                     decode_path=args.decode_path + "/valid_final_preds")
+                     decode_path=args.decode_path + "/valid_final_preds")"""
 
         # final eval on test set
         if args.do_test:
