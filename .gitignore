@@ -1,3 +1,6 @@
 log/
 /models/
 results/
+.ipynb_checkpoints/
+data/
+RQ1/.ipynb_checkpoints/
