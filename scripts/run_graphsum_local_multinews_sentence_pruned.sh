@@ -36,7 +36,7 @@ distributed_args="--node_ips ${PADDLE_TRAINERS} \
                 --node_id ${PADDLE_TRAINER_ID} \
                 --current_node_ip ${POD_IP} \
                 --selected_gpus 1,3,5 \
-                --split_log_path 'log/rq1_pruning_sentences' \
+                --split_log_path log/rq1_pruning_sentences \
                 --nproc_per_node 3"
 
 python3 -u ./src/launch.py ${distributed_args} \
