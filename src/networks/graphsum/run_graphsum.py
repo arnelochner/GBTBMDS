@@ -531,7 +531,6 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
             graph_vars["data_ids"].name,
             graph_vars["number_of_textual_units"].name,
             graph_vars["attention_weight_array"],
-            graph_vars["local_attention_weight_array"],
             graph_vars["parent_idx"].name,
             graph_vars["scores_tensor"].name,
             graph_vars["pre_ids"].name,
@@ -574,37 +573,23 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 acc += total_acc
                 steps += 1
             else:
-                seq_ids, seq_scores, data_ids, number_of_textual_units, attention_weights, local_attention_weights, parent_idx, scores_tensor, pre_ids = outputs
+                seq_ids, seq_scores, data_ids, number_of_textual_units, attention_weights, parent_idx, scores_tensor, pre_ids = outputs
                 # seq_ids, seq_scores, data_ids = outputs
 
                 attention_weights = np.array(attention_weights)
-                local_attention_weights = np.array(local_attention_weights)
                 parent_idx = np.array(parent_idx)
                 scores_tensor = np.array(scores_tensor)
                 pre_ids = np.array(pre_ids)
-                print("Attention weights shape %s" %
-                      str(attention_weights.shape))
-                print("Local attention weights shape %s" %
-                      str(local_attention_weights.shape))
-                print("parent_idx shape %s" % str(parent_idx.shape))
-                print("scores shape %s" % str(scores_tensor.shape))
-                print("pre_ids shape %s" % str(pre_ids.shape))
-                # print(weights.shape())
-                # a_weights = np.array(weights)
-                # print(type(attention_weights_array))
-                # print(a_weights.shape)
-                # print(a_weights)
 
-                np.save("pretrained_attention_weights", attention_weights)
-                np.save("pretrained_local_attention_weights",
-                        local_attention_weights)
-                np.save("parent_idx", parent_idx)
-                np.save("scores", scores_tensor)
-                np.save("pre_ids", pre_ids)
+                np.save("saved_attention_weights/pretrained_attention_weights_%s" %
+                        str(batch_num), attention_weights)
+                np.save("saved_attention_weights/parent_idx_%s" %
+                        str(batch_num), parent_idx)
+                np.save("saved_attention_weights/scores_%s" %
+                        str(batch_num), scores_tensor)
+                np.save("saved_attention_weights/pre_ids_%s" %
+                        str(batch_num), pre_ids)
 
-                # print(np.array(seq_ids).shape)
-                # print(np.array(seq_scores).shape)
-                # print(np.array(data_ids).shape)
                 seq_ids_list, seq_scores_list = [seq_ids], [
                     seq_scores] if isinstance(
                     seq_ids, paddle.fluid.core.LoDTensor) else (seq_ids, seq_scores)
@@ -612,7 +597,6 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 # print(seq_ids.shape)
                 data_ids = np.array(data_ids).reshape(-1).tolist()
 
-                print("Data_Ids: %s, length: %d" % (data_ids, len(data_ids)))
                 # print("Seq_scores_list length: %d" % (len(seq_scores_list)))
                 # print("Seq_ids length: %d" % (len(seq_ids_list)))
                 data_idx = 0
@@ -662,12 +646,9 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
 
                             sub_start = seq_ids.lod()[1][start + j]
                             sub_end = seq_ids.lod()[1][start + j + 1]
-                            print("sub_start: %d sub_end: %d length %d" %
-                                  (sub_start, sub_end, sub_end - sub_start))
 
                             length_list.append(sub_end-sub_start)
                             score = np.array(seq_scores)[sub_end - 1]
-                            print(f"Score {score}")
 
                         beam_length_array[data_id, :] = length_list
                         max_beam_length = np.max(length_list)
@@ -700,7 +681,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                             score = np.array(seq_scores)[sub_end - 1]
 
                             scores_array[data_id, j, :
-                                         sub_end-sub_start] = np.array(seq_scores[sub_start:sub_end])
+                                         sub_end-sub_start] = np.array(seq_scores[sub_start:sub_end-1])
 
                             # print(np.array(seq_scores[sub_start:sub_end]))
 
