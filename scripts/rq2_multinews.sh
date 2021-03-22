@@ -71,7 +71,7 @@ python -u ./src/run.py \
                --graph_type "similarity" \
                --len_penalty 0.6 \
                --block_trigram True \
-               --report_rouge True \
+               --report_rouge False \
                --learning_rate ${LR_RATE} \
                --skip_steps 100 \
                --grad_norm 2.0 \

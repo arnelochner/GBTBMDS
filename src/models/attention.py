@@ -792,10 +792,10 @@ def multi_head_hierarchical_attention(queries,
 
         if attention_weights_array is not None:
             #layers.Print(weights, summarize=5, first_n=1, message="weights")
-        # to_save = layers.reshape(
-        #    weights, shape=[-1, 1, n_head, query_len, key_s_len])
-        #to_save.persistable = True
-        # attention_weights_array.append(to_save)
+            # to_save = layers.reshape(
+            #    weights, shape=[-1, 1, n_head, query_len, key_s_len])
+            #to_save.persistable = True
+            # attention_weights_array.append(to_save)
             layers.array_write(weights, layer_id, attention_weights_array)
 
         if dropout_rate:
@@ -978,9 +978,9 @@ def multi_head_hierarchical_attention(queries,
         # (batch_size, n_block, n_head, tgt_len, n_token)
         weights = layers.softmax(product)
 
-        layers.Print(weights, first_n=10, message="Local weights")
         if local_attention_weights_array is not None:
-            layers.array_write(weights, layer_id, local_attention_weights_array)
+            layers.array_write(weights, layer_id,
+                               local_attention_weights_array)
 
         # attn_w = layers.reshape(weights, shape=[batch_size, key_s_len, n_head, query_len, -1])
         # (batch_size, n_head, tgt_len, n_block, n_token)

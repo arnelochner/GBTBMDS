@@ -650,10 +650,10 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                             length_list.append(sub_end-sub_start)
                             score = np.array(seq_scores)[sub_end - 1]
 
-                        beam_length_array[data_id, :] = length_list
+                        beam_length_array[data_idx, :] = length_list
                         max_beam_length = np.max(length_list)
 
-                        longest_beam_array[data_id
+                        longest_beam_array[data_idx
                                            ] = max_beam_length
 
                         for j in range(end - start):  # for each candidate
@@ -664,7 +664,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                                 np.array(seq_ids)[sub_start:sub_end],
                                 evaluate.symbols['BOS'], evaluate.symbols['EOS'])]
 
-                            token_beam_array[data_id,
+                            token_beam_array[data_idx,
                                              j, :len(token_ids)] = token_ids
 
                             # print(len(token_ids))
@@ -680,8 +680,10 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
 
                             score = np.array(seq_scores)[sub_end - 1]
 
-                            scores_array[data_id, j, :
-                                         sub_end-sub_start] = np.array(seq_scores[sub_start:sub_end-1])
+                            print(
+                                f"sub_start: {sub_start} | sub_end {sub_end}")
+                            scores_array[data_idx, j, :
+                                         sub_end-sub_start] = np.array(seq_scores[sub_start:min(sub_end, sub_start+300)])
 
                             # print(np.array(seq_scores[sub_start:sub_end]))
 
@@ -697,6 +699,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
 
                 save_dict = {
                     "longest_beam_array": longest_beam_array,
+                    "data_ids": data_ids,
                     "summary_beam_list": summary_beam_list,
                     "number_of_textual_units": np.array(number_of_textual_units),
                     "scores_array": scores_array,
