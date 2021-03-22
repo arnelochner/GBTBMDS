@@ -61,7 +61,7 @@ def main(args):
     model_config = GraphSumConfig(args.config_path)
     model_config.print_config()
 
-    gpu_id = 0
+    gpu_id = 2
     gpus = fluid.core.get_cuda_device_count()
     if args.is_distributed:
         gpus = os.getenv("FLAGS_selected_gpus").split(",")
@@ -549,6 +549,8 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
     time_begin = time.time()
     pyreader.start()
 
+    batch_num = 0
+
     while True:
         try:
             if args.use_multi_gpu_test:
@@ -580,8 +582,10 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 parent_idx = np.array(parent_idx)
                 scores_tensor = np.array(scores_tensor)
                 pre_ids = np.array(pre_ids)
-                print("Attention weights shape %s" % str(attention_weights.shape))
-                print("Local attention weights shape %s" % str(local_attention_weights.shape))
+                print("Attention weights shape %s" %
+                      str(attention_weights.shape))
+                print("Local attention weights shape %s" %
+                      str(local_attention_weights.shape))
                 print("parent_idx shape %s" % str(parent_idx.shape))
                 print("scores shape %s" % str(scores_tensor.shape))
                 print("pre_ids shape %s" % str(pre_ids.shape))
@@ -592,7 +596,8 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 # print(a_weights)
 
                 np.save("pretrained_attention_weights", attention_weights)
-                np.save("pretrained_local_attention_weights", local_attention_weights)
+                np.save("pretrained_local_attention_weights",
+                        local_attention_weights)
                 np.save("parent_idx", parent_idx)
                 np.save("scores", scores_tensor)
                 np.save("pre_ids", pre_ids)
@@ -612,7 +617,8 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 # print("Seq_ids length: %d" % (len(seq_ids_list)))
                 data_idx = 0
 
-                longest_beam_array = np.zeros(shape=attention_weights.shape[:1])
+                longest_beam_array = np.zeros(
+                    shape=attention_weights.shape[:1])
 
                 beam_length_array = np.zeros(shape=attention_weights.shape[:2])
 
@@ -696,7 +702,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                             scores_array[data_id, j, :
                                          sub_end-sub_start] = np.array(seq_scores[sub_start:sub_end])
 
-                            print(np.array(seq_scores[sub_start:sub_end]))
+                            # print(np.array(seq_scores[sub_start:sub_end]))
 
                             # print(score)
                             # print("Data_idx: %d" % (data_idx))
@@ -716,8 +722,10 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                     "token_beam_array": token_beam_array,
                     "beam_length": beam_length_array}
 
-                with open("save_dict", "wb") as handle:
+                with open("saved_attention_weights/save_dict_%s" % str(batch_num), "wb") as handle:
                     pickle.dump(save_dict, handle)
+
+                batch_num += 1
 
         except fluid.core.EOFException:
             pyreader.reset()
