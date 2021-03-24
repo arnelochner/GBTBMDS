@@ -258,7 +258,6 @@ def transform_attention_weights(attention_weights, parent_idx, scores, result_di
 
     cleaned_weight_matrix, cleaned_score_matrix = cleanup_matrix(sorted_weight_matrix, sorted_score_matrix,
                                                                  result_dict["beam_length"])
-
     return cleaned_weight_matrix, cleaned_score_matrix
 
 
@@ -293,6 +292,8 @@ def sort_matrixes(decoded_weight_matrix, decoded_score_matrix, longest_beam_arra
     """
 
     num_examples, num_beams, _ = decoded_score_matrix.shape
+    
+    longest_beam_array = np.where(longest_beam_array < 300, longest_beam_array, 299)
 
     # Retrieve Index Information for each examples, which beam has the highest end-score
     sort_information = np.argsort(

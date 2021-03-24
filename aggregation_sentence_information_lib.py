@@ -1,10 +1,11 @@
 import numpy as np
+from tqdm.notebook import tqdm
 
 
 def custom_function(y, fun, sentences_ending_information, max_num_sentences, shapes):
     i, x = y
-    ex_num = int(i / 5)
-    beam_num = i % 5
+    ex_num = int(i / shapes[4])
+    beam_num = i % shapes[4]
     sentence_information = sentences_ending_information[ex_num, beam_num].astype(
         "int")
     beam = x.reshape(shapes[3], shapes[0], shapes[1], shapes[2])
@@ -23,7 +24,7 @@ def custom_function(y, fun, sentences_ending_information, max_num_sentences, sha
 
 
 def aggregate_weight_information_for_sentences(cleaned_weight_matrix, result_dict, eoq_token=8):
-
+    
     num_examples, num_beams, num_steps, num_decoding_layer, num_multi_head, num_paragraphs = cleaned_weight_matrix.shape
 
     sentences_ending_information = np.array([np.append(np.insert(np.where(beam == eoq_token), 0, 0, axis=1).reshape(-1,), [
@@ -39,9 +40,9 @@ def aggregate_weight_information_for_sentences(cleaned_weight_matrix, result_dic
 
     res_dict = dict()
 
-    for fun in functions:
+    for fun in tqdm(functions):
         r = list(map(lambda x: custom_function(
-            x, fun["fun"], sentences_ending_information, max_num_sentences, (num_decoding_layer, num_multi_head, num_paragraphs, num_steps)), enumerate(reshaped_matrix)))
+            x, fun["fun"], sentences_ending_information, max_num_sentences, (num_decoding_layer, num_multi_head, num_paragraphs, num_steps, num_beams)), tqdm(enumerate(reshaped_matrix))))
         res_dict[fun["name"]] = np.array(r).reshape(num_examples, num_beams, max_num_sentences-1,
                                                     num_decoding_layer, num_multi_head, num_paragraphs)
 

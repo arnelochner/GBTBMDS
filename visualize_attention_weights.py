@@ -285,7 +285,7 @@ def generate_histo_mat(result_dict, aggregated_weight_matrix, normalize=False):
     ax = []
     num_ex, _, max_sent, num_multi_heads, decoding_layers, max_para = aggregated_weight_matrix.shape
     # maximal length of sentence times maximal paragraph length
-    histo = np.zeros((max_sent, max_para))
+    histo = np.zeros((max_sent-1, max_para))
     for example in range(num_ex):
         number_of_textual_units = result_dict["number_of_textual_units"][example]
         text_units = np.cumsum(
@@ -304,7 +304,7 @@ def generate_histo_mat(result_dict, aggregated_weight_matrix, normalize=False):
     #histo=np.vstack((histo, np.argmax(aux[:,text_units[i]:text_units[i+1]], axis=1)))
     histo = histo[:-1, :]
     if normalize:
-        histo = histo/histo.max(axis=1)[:, np.newaxis]
+        histo = histo/histo.sum(axis=1)[:, np.newaxis]
     # rows are how often the n-th paragraph of a docuemnt is atended.
     return histo
     # Columns represent sentences, 1 first sentence, 2 second .....
@@ -324,7 +324,7 @@ def histo_simp(result_dict, aggregated_weight_matrix, normalize=False, plot=True
     if plot:
         fig, ax = plt.subplots(figsize=(20, 10))
 
-    im = ax.imshow(Z, cmap='hot', extent=(
+    im = ax.imshow(Z, extent=(
         0, aux.shape[0], aux.shape[1], 0), aspect='auto')  # , interpolation='bilinear')
 
     bar = plt.colorbar(im)
@@ -345,7 +345,7 @@ def generate_histo_mat_per_dec_layer(result_dict, aggregated_weight_matrix, deco
     ax = []
     num_ex, _, max_sent, num_multi_heads, decoding_layers, max_para = aggregated_weight_matrix.shape
     # maximal length of sentence times maximal paragraph length
-    histo = np.zeros((max_sent, max_para))
+    histo = np.zeros((max_sent-1, max_para))
     for example in range(num_ex):
         number_of_textual_units = result_dict["number_of_textual_units"][example]
         text_units = np.cumsum(
@@ -363,7 +363,7 @@ def generate_histo_mat_per_dec_layer(result_dict, aggregated_weight_matrix, deco
     #histo=np.vstack((histo, np.argmax(aux[:,text_units[i]:text_units[i+1]], axis=1)))
     histo = histo[:-1, :]
     if normalize:
-        histo = histo/histo.max(axis=1)[:, np.newaxis]
+        histo = histo/histo.sum(axis=1)[:, np.newaxis]
     # rows are how often the n-th paragraph of a docuemnt is atended.
     return histo
     # Columns represent sentences, 1 first sentence, 2 second .....
@@ -389,7 +389,7 @@ def histo_simp_per_dec_layer(result_dict, aggregated_weight_matrix, normalize=Fa
         ax = fig.add_subplot(
             spec[decoding_layer//(decoding_layers//2), decoding_layer % (decoding_layers//2)])
 
-        im = ax.imshow(Z, cmap='hot', extent=(
+        im = ax.imshow(Z, extent=(
             0, aux.shape[0], aux.shape[1], 0), aspect='auto')  # , interpolation='bilinear')
 
         bar = plt.colorbar(im)
