@@ -9,6 +9,9 @@ import numpy as np
 import sentencepiece
 from scipy.special import softmax
 
+import sys
+sys.path.insert(0, './src')
+
 import pyrouge
 from tools.cal_rouge import chunks
 from matplotlib import pyplot as plt
@@ -41,14 +44,14 @@ def process_sequential(data):
                       encoding="utf-8") as f:
                 f.write(references[i])
 
-            r = pyrouge.Rouge155("./pyrouge/rouge/tools/ROUGE-1.5.5/")
+            r = pyrouge.Rouge155("./pyrogue/tools/ROUGE-1.5.5")
             r.model_dir = tmp_dir + "/reference/"
             r.system_dir = tmp_dir + "/candidate/"
             r.model_filename_pattern = 'ref.#ID#.txt'
             r.system_filename_pattern = r'cand.(\d+).txt'
             rouge_results = r.convert_and_evaluate()
-            if debug:
-                print(rouge_results)
+            #if debug:
+                #print(rouge_results)
             results_dict = r.output_to_dict(rouge_results)
             results.append(results_dict)
     finally:
@@ -64,7 +67,7 @@ def test_rouge(cand, ref, num_processes, debug=True):
     """
     candidates = [line.strip() for line in cand]
     references = [line.strip() for line in ref]
-    print(candidates)
+    #print(candidates)
     if debug:
         print('Num of candidates: %d' % len(candidates))
         print('Num of references: %d' % len(references))
@@ -195,8 +198,8 @@ def tokenize(can_path="results/graphsum_multinews/test_final_preds.candidate",
 
     print(spm.decode(decoded))
     print(candidates_str[0][0])"""
-
-    documents_tokenized = [[spm.encode_as_ids(par) for par in test_json[e]['src_str']] for e in range(len(test_json))]
+    
+    documents_tokenized = [test_json[e]['src'] for e in range(len(test_json))]
 
     # documents_tokenized_str: (#examples,#paragraph, #sentences)
     # candidates_tokenized_str: (#examples, #sentences)
@@ -221,8 +224,12 @@ def transform_results(summaries, paragraphs, rouge_scores, num_examples, max_sum
     @return: numpy array of shape (num_examples, num_paragrapgs, num_paragraph_sen, max_sum_sen, 3)
              where the last dimension contains ROUGE-1, ROUGE-2 and ROUGE-L
     """
-    num_paragraphs = 30
-    num_paragraph_sen = 30
+    num_paragraphs = np.max([
+        len(ex) for ex in paragraphs])
+    
+    num_paragraph_sen = np.max([
+        len(para) for ex in paragraphs for para in ex
+    ])
 
     res = -np.ones((num_examples, num_paragraphs, num_paragraph_sen, max_sum_sen, 3))
     cnt = 0
@@ -230,10 +237,10 @@ def transform_results(summaries, paragraphs, rouge_scores, num_examples, max_sum
         for ss, summary_sentence in enumerate(summary):
             for p, paragraph in enumerate(paragraphs[e]):
                 for ps, _ in enumerate(paragraph):
-                    res[e, p, ps, ss, 0] = rouge_scores[cnt]["rouge_1_f_score"]
-                    res[e, p, ps, ss, 1] = rouge_scores[cnt]["rouge_2_f_score"]
-                    res[e, p, ps, ss, 2] = rouge_scores[cnt]["rouge_l_f_score"]
-                    cnt += 1
+                        res[e, p, ps, ss, 0] = rouge_scores[cnt]["rouge_1_f_score"]
+                        res[e, p, ps, ss, 1] = rouge_scores[cnt]["rouge_2_f_score"]
+                        res[e, p, ps, ss, 2] = rouge_scores[cnt]["rouge_l_f_score"]                        
+                        cnt += 1
     return res
 
 
@@ -274,7 +281,7 @@ def slice_rouge(scores, example, rouge_meta, stack=True):
     return patches
 
 
-def plot_rouge(scores, example, input_meta, rouge_meta, score=1, cmap="hot"):
+def plot_rouge_old(scores, example, input_meta, rouge_meta, score=1, cmap="hot"):
     """
     Plot rouge scores between paragraph sentences and summary sentences (for a single example) as heatmap.
     Document boundaries and paragraph boundaries are marked as vertical lines.
@@ -290,6 +297,8 @@ def plot_rouge(scores, example, input_meta, rouge_meta, score=1, cmap="hot"):
     fig, ax = plt.subplots(figsize=(20, 10))
 
     img = slice_rouge(scores, example, rouge_meta)
+    
+    print(img.shape)
 
     im = ax.imshow(img[:, :, score].T, cmap=cmap, interpolation='nearest')
     sum_sen = 0
@@ -299,16 +308,85 @@ def plot_rouge(scores, example, input_meta, rouge_meta, score=1, cmap="hot"):
         sum_sen = sum_sen + rouge_meta[example]["paragraph_sentences"][para]
         ax.axvline(sum_sen - 0.5, color="cyan", linewidth=1)
 
+    sentence_ending = np.cumsum([rouge_meta[example]["paragraph_sentences"][para] for para in range(rouge_meta[example]["paragraphs"])])
+    
     number_of_textual_units = input_meta["number_of_textual_units"][example]
 
     text_units = np.cumsum(
         number_of_textual_units[number_of_textual_units != 0])
+    
+    
+    print(text_units)
 
     for x in text_units[:-1]:
         ax.axvline(sum(rouge_meta[example]["paragraph_sentences"][:x]) - 0.5, color="w", linewidth=3)
 
     fig.colorbar(im, ax=ax, label=f"ROUGE {rouge_dict[score]}")
     plt.show()
+    
+    return sentence_ending, text_units
+
+def plot_rouge(scores, input_meta, rouge_meta, score=1, cmap="hot"):
+    """
+    Plot rouge scores between paragraph sentences and summary sentences (for a single example) as heatmap.
+    Document boundaries and paragraph boundaries are marked as vertical lines.
+    @param scores: rouge scores
+    @param input_meta: meta data from preprocessing script (number of textual units)
+    @param rouge_meta: meta data from rouge processing (number of sentences per paragraph)
+    @param score: plot ROUGE-1, ROUGE-2 or ROUGE-L
+    @param cmap: color map for plot
+    """
+
+    rouge_dict = {0: "1", 1: "2", 2: "L"}
+    #fig, ax = plt.subplots(figsize=(20, 10))
+    
+    sentence_information = np.zeros(shape=[100])
+    
+    histo = np.zeros((30, 100))
+    
+    for ex in range(500):
+
+        img = slice_rouge(scores, ex, rouge_meta)
+
+
+
+
+        number_of_paragraphs_each_document = np.cumsum([0] + list(input_meta["number_of_textual_units"][ex]))
+
+        sentence_cumsum = [0] + list(np.cumsum(rouge_meta[ex]["paragraph_sentences"]))
+
+        number_of_documents = np.where(number_of_paragraphs_each_document == rouge_meta[ex]["paragraphs"])[0][1]
+
+
+
+ 
+
+        for i in range(number_of_documents-1):
+
+            document_start = number_of_paragraphs_each_document[i]
+            document_ending = number_of_paragraphs_each_document[i+1]
+
+            #print(f"document_start: {document_start} | document_ending: {document_ending}")
+            sentence_start = sentence_cumsum[document_start]
+            sentence_ending = sentence_cumsum[document_ending]
+            
+            sentence_information[sentence_ending-sentence_start] += 1
+
+            #print(f"sentence_start: {sentence_start} | sentence_ending: {sentence_ending}")
+            relevent_scores = img[sentence_start:sentence_ending,:,score].T
+
+            for j, x in enumerate(np.argmax(relevent_scores, axis=1)):
+                    histo[j, x] += 1
+        
+    histo = histo / (np.cumsum(sentence_information[::-1])[::-1] + np.e**-15)
+    
+    
+    histo = histo/(histo.sum(axis=1) + np.e**-15)[:, np.newaxis]
+    
+    plt.imshow(histo[:20,:20].T)
+    plt.xlabel("Generated Sentences")
+    plt.ylabel("Input Sentences")
+    plt.colorbar()
 
 
 def aggregate_rouge_paragraph(example, rouge_scores, rouge_meta, fun=np.mean):
@@ -341,54 +419,23 @@ def plot_attention_rouge_correlation(rouge_scores, rouge_meta, attention_weights
     corr, r1, r2, rl, attentions = attention_rouge_correlation(
         rouge_scores, rouge_meta, attention_weights, attention_dec=attention_dec,
         attention_mh=attention_mh, attention_metric=attention_metric, aggregate_function=aggregate_function)
+    print(corr[0,:])
+    
     plt.figure(figsize=(20, 10))
+    plt.title(f"Correlation to ROUGE-F(1/2/L): {corr[0,1]:.2f} / {corr[0,2]:.2f} / {corr[0,3]:.2f}")
+    plt.suptitle("Visualizatzion of Correlation between ROUGE-Scores and the mean Attention-Weights of Decoding Layers %s" % str(np.array(attention_dec)+1))
     plt.scatter(r1, attentions, label="ROUGE 1")
     plt.scatter(r2, attentions, label="ROUGE 2")
     plt.scatter(rl, attentions, label="ROUGE L")
-    plt.xlabel("ROGUE")
-    plt.ylabel("Attention")
+    plt.xlabel("ROGUE-Scores")
+    plt.ylabel("Global Attention Weights")
+    plt.savefig("correlation_rouge_attention_%s.png" % str(np.array(attention_dec)+1))
     plt.legend()
 
 
-def plot_attention_rouge_correlation_all_examples(rouge_scores, rouge_meta, attention_weights, attention_dec=7,
-                                                  attention_mh=7, attention_metric="Mean", aggregate_function=np.mean):
-    """
-    Plot correlation between rouge scores and attention weights for each example.
-    @param rouge_scores: rouge scores
-    @param rouge_meta: meta information obtained by ROUGE processing
-    @param attention_weights: attention weights
-    @param attention_dec: decoder layer
-    @param attention_mh: multi-head attention layer
-    @param attention_metric: metric used for attention aggregation ("Mean", "Median",...)
-    @param aggregate_function: aggregation function for ROUGE aggregation (np.mean, ...)
-    """
-    fig, axes = plt.subplots(10, 3)
-    fig.set_size_inches(20, 20)
-
-    for i, s in enumerate(["ROUGE 1", "ROUGE 2", "ROUGE L"]):
-        axes[0, i].set_title(s)
-    for e in range(10):
-        r_tmp = np.transpose(aggregate_rouge_paragraph(e, rouge_scores, rouge_meta, fun=aggregate_function),
-                             axes=(1, 0, 2))
-        a_tmp = attention_weights[attention_metric][e, 0, :np.shape(r_tmp)[0], attention_dec, attention_mh,
-                :np.shape(r_tmp)[1]]
-
-        r_tmp = softmax(r_tmp, axis=1)
-        r_tmp = r_tmp.reshape((-1, 3))
-
-        a_tmp = a_tmp.reshape(-1, )
-        r1 = r_tmp[:, 0]
-        r2 = r_tmp[:, 1]
-        rl = r_tmp[:, 2]
-
-        #corr = np.corrcoef(np.array([a_tmp, r1, r2, rl]))
-
-        axes[e, 0].scatter(r1, a_tmp)
-        axes[e, 1].scatter(r2, a_tmp)
-        axes[e, 2].scatter(rl, a_tmp)
 
 
-def attention_rouge_correlation(rouge_scores, rouge_meta, attention_weights, attention_dec=7, attention_mh=7,
+def attention_rouge_correlation(rouge_scores, rouge_meta, attention_weights, attention_dec=[7], attention_mh=7,
                                 attention_metric="Mean", aggregate_function=np.mean):
     """
     Calculates correlation between ROUGE scores and attention weights over all examples.
@@ -403,20 +450,35 @@ def attention_rouge_correlation(rouge_scores, rouge_meta, attention_weights, att
     @param aggregate_function: aggregation function for ROUGE aggregation (np.mean, ...)
     @return: correlation_matrix, processed_r1, processed_r2, processed_rl, processed_attention
     """
-    num_examples = len(rouge_meta)
-    rouges = -np.ones((num_examples, 30 * 12, 3))
-    attentions = -np.ones((num_examples, 30 * 12))
+    
+    num_examples,_,num_generated_sentences,_,_,num_paragraphs = attention_weights[attention_metric].shape
+        
+    rouges = -np.ones((num_examples, num_paragraphs * num_generated_sentences, 3))
+    attentions = -np.ones((num_examples, num_paragraphs * num_generated_sentences))
+    
+   
 
     for e in range(num_examples):
         r_tmp = np.transpose(aggregate_rouge_paragraph(e, rouge_scores, rouge_meta, fun=aggregate_function),
                              axes=(1, 0, 2))
-        a_tmp = attention_weights[attention_metric][e, 0, :np.shape(r_tmp)[0], attention_dec, attention_mh,
+        
+        a_tmp = attention_weights[attention_metric][e, 0, :np.shape(r_tmp)[0], attention_dec, :,
                 :np.shape(r_tmp)[1]]
+        
 
-        # r1 = r1 / np.sum(r1, axis=0)
+        a_tmp = np.mean(a_tmp, axis=0)
+        a_tmp = np.mean(a_tmp, axis=1)
+        
+        
+           
+        
+        #r_tmp = r_tmp / (np.sum(r_tmp, axis=1, keepdims=True) + np.e**-15)
 
-        r_tmp = softmax(r_tmp, axis=1)
+    
+        #r_tmp = softmax(r_tmp, axis=1)
+          
         r_tmp = r_tmp.reshape((-1, 3))
+        
 
         rouges[e, :r_tmp.shape[0], :r_tmp.shape[1]] = r_tmp
         a_tmp = a_tmp.reshape((-1,))
@@ -434,16 +496,25 @@ def attention_rouge_correlation(rouge_scores, rouge_meta, attention_weights, att
 
     attentions = attentions.reshape(-1, )
     attentions = attentions[attentions != -1]
+    
+    """index = np.where(attentions > 0.1)
+    
+    attentions = attentions[index]
+    r1 = r1[index]
+    r2 = r2[index]
+    rl = rl[index]"""
+    
     corr = np.corrcoef([attentions, r1, r2, rl])
     return corr, r1, r2, rl, attentions
 
 
 if __name__ == "__main__":
-    can_path = "results/graphsum_multinews/test_final_preds.candidate"
-    input_paragraphs = "data/MultiNews_data_tfidf_paddle_paragraph_small/test/MultiNews.30.test.0.json"
+    os.environ["PERL5LIB"] = "/home/lochner/miniconda3/envs/graph36_final/lib/site_perl/5.26.2/x86_64-linux-thread-multi:/home/lochner/miniconda3/envs/graph36_final/lib/site_perl/5.26.2"
+    can_path = "/home/lochner/RQ2/GBTBMDS/results/graphsum_multinews/test_final_preds.candidate"
+    input_paragraphs = "/home/lochner/RQ2/GBTBMDS/data/MultiNews_data_tfidf_30_paddle_full_paragraph/small_test/MultiNews.30.test.0.json"
 
     summaries, paragraphs = tokenize(can_path=can_path, input_paragraphs=input_paragraphs)
-    #  results = extract_rouge(summaries, paragraphs)
-    # np.save("rouge_full", results)
+    results = extract_rouge(summaries, paragraphs)
+    np.save("rouge_full", results)
     meta = extract_meta(summaries, paragraphs)
     json.dump(meta, open("rouge_meta.json", "w"))
