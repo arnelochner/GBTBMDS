@@ -283,6 +283,7 @@ def generate_histo_mat(result_dict, aggregated_weight_matrix, normalize=False):
     # over all examples, decoding layers and attention heads.
     plot = True
     ax = []
+           
     num_ex, _, max_sent, num_multi_heads, decoding_layers, max_para = aggregated_weight_matrix.shape
     # maximal length of sentence times maximal paragraph length
     histo = np.zeros((max_sent-1, max_para))
@@ -343,9 +344,12 @@ def generate_histo_mat_per_dec_layer(result_dict, aggregated_weight_matrix, deco
     # over all examples, decoding layers and attention heads.
     plot = True
     ax = []
+    
+    para_information = np.zeros(shape=[30])
+    
     num_ex, _, max_sent, num_multi_heads, decoding_layers, max_para = aggregated_weight_matrix.shape
     # maximal length of sentence times maximal paragraph length
-    histo = np.zeros((max_sent-1, max_para))
+    histo = np.zeros((max_sent, max_para))
     for example in range(num_ex):
         number_of_textual_units = result_dict["number_of_textual_units"][example]
         text_units = np.cumsum(
@@ -357,25 +361,28 @@ def generate_histo_mat_per_dec_layer(result_dict, aggregated_weight_matrix, deco
             aux = aux[:, np.max(aux, axis=0) > 1e-10]
             aux = aux[np.max(aux, axis=1) > 1e-10, :]
             for i in range(len(text_units)-1):
+                para_information[text_units[i+1]-text_units[i]] +=1
                 for j, x in enumerate(np.argmax(aux[:, text_units[i]:text_units[i+1]], axis=1)):
                     histo[j, x] += 1
 
     #histo=np.vstack((histo, np.argmax(aux[:,text_units[i]:text_units[i+1]], axis=1)))
     histo = histo[:-1, :]
     if normalize:
+        histo = histo / (np.cumsum(para_information[::-1])[::-1] + np.e**-15)
+    
         histo = histo/histo.sum(axis=1)[:, np.newaxis]
     # rows are how often the n-th paragraph of a docuemnt is atended.
     return histo
     # Columns represent sentences, 1 first sentence, 2 second .....
 
 
-def histo_simp_per_dec_layer(result_dict, aggregated_weight_matrix, normalize=False, size=(40, 10), save=False):
+def histo_simp_per_dec_layer(result_dict, aggregated_weight_matrix, normalize=False, size=(40, 10), save=False, decoding_layer_list = range(8)):
 
-    _, _, _, decoding_layers, _, _ = aggregated_weight_matrix.shape
+    decoding_layers = len(decoding_layer_list)
     fig = plt.figure(figsize=size)
     spec = gridspec.GridSpec(2, decoding_layers//2, wspace=0.3, hspace=0.3)
 
-    for decoding_layer in range(decoding_layers):
+    for idx,decoding_layer in enumerate(decoding_layer_list):
         aux = generate_histo_mat_per_dec_layer(
             result_dict, aggregated_weight_matrix, decoding_layer, normalize)
         # Calculating the output and storing it in the array Z
@@ -387,7 +394,7 @@ def histo_simp_per_dec_layer(result_dict, aggregated_weight_matrix, normalize=Fa
         Z = aux[X, Y]
 
         ax = fig.add_subplot(
-            spec[decoding_layer//(decoding_layers//2), decoding_layer % (decoding_layers//2)])
+            spec[idx//(decoding_layers//2), idx - (idx//(decoding_layers//2))*(decoding_layers//2)])
 
         im = ax.imshow(Z, extent=(
             0, aux.shape[0], aux.shape[1], 0), aspect='auto')  # , interpolation='bilinear')
@@ -395,22 +402,23 @@ def histo_simp_per_dec_layer(result_dict, aggregated_weight_matrix, normalize=Fa
         bar = plt.colorbar(im)
         bar.set_label('Occurrences')
 
-        ax.set_title(r"Decoding layer: $%d$" % (decoding_layer))
+        ax.set_title(r"Decoding layer: $%d$" % (decoding_layer+1))
         ax.set_ylabel('Paragraph number')
         ax.set_xlabel('Generated Sentence')
 
     if normalize:
         fig.suptitle(
-            "Attended paragraph position (normalized) over decoding layers")
+            "Heatmap indicating which input paragraph position was attended the most for all generated sentence")
     else:
-        fig.suptitle("Attended paragraph position over decoding layers")
+        fig.suptitle(
+            "Heatmap indicating which input paragraph position was attended the most for all generated sentence")
 
     if save:
         if normalize:
             plt.savefig(
-                'saved_figs/overall_norm_distri_dec_layer.svg', facecolor="white")
+                'saved_figs/overall_norm_distri_dec_layer.pdf', facecolor="white")
         else:
-            plt.savefig('saved_figs/overall_distri_dec_layer.svg',
+            plt.savefig('saved_figs/overall_distri_dec_layer.pdf',
                         facecolor="white")
 
     plt.show()
