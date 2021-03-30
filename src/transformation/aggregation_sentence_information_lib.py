@@ -1,5 +1,5 @@
 import numpy as np
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 
 
 def custom_function(y, fun, sentences_ending_information, max_num_sentences, shapes):

@@ -580,15 +580,26 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                 parent_idx = np.array(parent_idx)
                 scores_tensor = np.array(scores_tensor)
                 pre_ids = np.array(pre_ids)
+                
+                output_batch_folder = "batch_%s" % batch_num
+                
+                try:
+                    os.mkdir(output_batch_folder)
+                except OSError:
+                    print ("Creation of the directory %s failed" % output_batch_folder)
+                else:
+                    print ("Successfully created the directory %s " % output_batch_folder)
+                    
+                    
 
-                np.save("saved_attention_weights/pretrained_attention_weights_%s" %
-                        str(batch_num), attention_weights)
-                np.save("saved_attention_weights/parent_idx_%s" %
-                        str(batch_num), parent_idx)
-                np.save("saved_attention_weights/scores_%s" %
-                        str(batch_num), scores_tensor)
-                np.save("saved_attention_weights/pre_ids_%s" %
-                        str(batch_num), pre_ids)
+                np.save("saved_attention_weights/%s/pretrained_attention_weights" %
+                        output_batch_folder, attention_weights)
+                np.save("saved_attention_weights/%s/parent_idx" %
+                        output_batch_folder, parent_idx)
+                np.save("saved_attention_weights/%s/scores" %
+                        output_batch_folder, scores_tensor)
+                np.save("saved_attention_weights/%s/pre_ids" %
+                        output_batch_folder, pre_ids)
 
                 seq_ids_list, seq_scores_list = [seq_ids], [
                     seq_scores] if isinstance(
@@ -640,8 +651,6 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                         # tmp = []
 
                         data_id = data_ids[data_idx]
-                        print("Example %d with data_id %d" %
-                              (i, data_id))
                         for j in range(end - start):  # for each candidate
 
                             sub_start = seq_ids.lod()[1][start + j]
@@ -680,8 +689,6 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
 
                             score = np.array(seq_scores)[sub_end - 1]
 
-                            print(
-                                f"sub_start: {sub_start} | sub_end {sub_end}")
                             scores_array[data_idx, j, :
                                          sub_end-sub_start] = np.array(seq_scores[sub_start:min(sub_end, sub_start+300)])
 
@@ -706,7 +713,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                     "token_beam_array": token_beam_array,
                     "beam_length": beam_length_array}
 
-                with open("saved_attention_weights/save_dict_%s" % str(batch_num), "wb") as handle:
+                with open("saved_attention_weights/%s/save_dict" % output_batch_folder, "wb") as handle:
                     pickle.dump(save_dict, handle)
 
                 batch_num += 1

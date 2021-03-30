@@ -210,7 +210,7 @@ def transform_attention_weights_decoder(attention_weights, score_matrix, parent_
     return decoded_weight_matrix, decoded_score_matrix
 
 
-def transform_attention_weights(attention_weights, parent_idx, scores, result_dict):
+def transform_attention_weights(attention_weights, parent_idx, scores, result_dict, max_beam_length=300):
     """
     Wrapper Function, which firstly reconstructs mapping of examples in arrays and afterwards transforms
     these arrays based on decoding algorithm to recreate beams of examples.
@@ -234,7 +234,8 @@ def transform_attention_weights(attention_weights, parent_idx, scores, result_di
             'longest_beam_array': Array which stores information how long the longest beam is for each example
             'summary_beam_list': List containing all generated summaries for the example in string form.
             'token_beam_array': Array containing all generated summaries for the example in token form.
-
+    - max_beam_length(int):
+        Integer Value indicating maximum length of generated summaries, which is a parameter set when predicting via graphsum model.
     Returns:
 
     - cleaned_weight_matrix (np.array, shape=[
@@ -254,14 +255,14 @@ def transform_attention_weights(attention_weights, parent_idx, scores, result_di
         attention_weights_matrix, scores_matrix, parent_idx_matrix, result_dict["longest_beam_array"]-1)
 
     sorted_weight_matrix, sorted_score_matrix = sort_matrixes(
-        decoded_weight_matrix, decoded_score_matrix, result_dict["longest_beam_array"]-1)
+        decoded_weight_matrix, decoded_score_matrix, result_dict["longest_beam_array"]-1, max_beam_length)
 
     cleaned_weight_matrix, cleaned_score_matrix = cleanup_matrix(sorted_weight_matrix, sorted_score_matrix,
                                                                  result_dict["beam_length"])
     return cleaned_weight_matrix, cleaned_score_matrix
 
 
-def sort_matrixes(decoded_weight_matrix, decoded_score_matrix, longest_beam_array):
+def sort_matrixes(decoded_weight_matrix, decoded_score_matrix, longest_beam_array, max_beam_length):
     """
     The Beam Search Decoder, which is used in GraphSum sorts the beam of all examples based on their scores. 
     The Decoded_Weight_Matrix and Decoded_Score_Matrix are not sorted so far. Therefore this function is used to sort the beams
@@ -293,7 +294,7 @@ def sort_matrixes(decoded_weight_matrix, decoded_score_matrix, longest_beam_arra
 
     num_examples, num_beams, _ = decoded_score_matrix.shape
     
-    longest_beam_array = np.where(longest_beam_array < 300, longest_beam_array, 299)
+    longest_beam_array = np.where(longest_beam_array < max_beam_length, longest_beam_array, max_beam_length - 1)
 
     # Retrieve Index Information for each examples, which beam has the highest end-score
     sort_information = np.argsort(
