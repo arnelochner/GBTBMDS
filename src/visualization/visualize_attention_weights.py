@@ -370,7 +370,7 @@ def generate_histo_mat_per_dec_layer(result_dict, aggregated_weight_matrix, deco
     if normalize:
         histo = histo / (np.cumsum(para_information[::-1])[::-1] + np.e**-15)
     
-        histo = histo/histo.sum(axis=1)[:, np.newaxis]
+        histo = histo/(histo + np.e**-15).sum(axis=1)[:, np.newaxis]
     # rows are how often the n-th paragraph of a docuemnt is atended.
     return histo
     # Columns represent sentences, 1 first sentence, 2 second .....
