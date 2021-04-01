@@ -10,7 +10,7 @@ def main():
     parser = argparse.ArgumentParser(description='Transform Global Attention Weights')
     parser.add_argument("--input_path", default='saved_attention_weights/')
     parser.add_argument("--output_path", default='transformed_attention_weights/')
-    parser.add_argument("--max_beam_length", default=300)
+    parser.add_argument("--max_beam_length", default=300, type=int)
     
     args = parser.parse_args()
     
@@ -45,14 +45,33 @@ def load_data(input_path, max_beam_length):
         scores = np.load(os.path.join(batch, "scores.npy"))
         result_dicts = pickle.load(open(os.path.join(batch, "save_dict"),"rb"))
         
-        
         result_dicts["beam_length"] = np.where(result_dicts["beam_length"] < max_beam_length+1, result_dicts["beam_length"], max_beam_length)
         result_dicts["longest_beam_array"] = np.where(result_dicts["longest_beam_array"] < max_beam_length+1, result_dicts["longest_beam_array"], max_beam_length)
         
+        
+        
+ 
+        shape = weights.shape
+    
+        tmp_scores_array = np.zeros(shape=[shape[0],shape[1], max_beam_length])
+        tmp_scores_array[:,:,:weights.shape[2]] = result_dicts["scores_array"]
+        
+        tmp_token_array = np.zeros(shape=[shape[0],shape[1], max_beam_length])
+        tmp_token_array[:,:,:weights.shape[2]] = result_dicts["token_beam_array"]
+        
+        result_dicts["scores_array"] = tmp_scores_array
+        result_dicts["token_beam_array"] = tmp_token_array
+        
+        
+        tmp_weights = np.zeros(shape=[shape[0],shape[1],max_beam_length,shape[3],shape[4],shape[5]])
+        tmp_scores = np.zeros(shape=[shape[0],shape[1],max_beam_length])
         cleaned_weight_matrix, cleaned_score_matrix = transform_attention_weights(weights, parent_idx, scores, result_dicts)
-        weights_list.append(cleaned_weight_matrix)
+        tmp_weights[:,:,:weights.shape[2],:,:,:] = cleaned_weight_matrix
+        tmp_scores[:,:,:weights.shape[2]] = cleaned_score_matrix
+        
+        weights_list.append(tmp_weights)
         result_dicts_list.append(result_dicts)
-        scores_list.append(cleaned_score_matrix)
+        scores_list.append(tmp_scores)
         
     cleaned_weight_matrix = np.concatenate(weights_list)
     cleaned_score_matrix = np.concatenate(scores_list)

@@ -246,6 +246,7 @@ if __name__ == "__main__":
     parser.add_argument("--can_path", default='./results/graphsum_multinews/test_final_preds.candidate')
     parser.add_argument("--input_data", default='./data/MultiNews_data_tfidf_30_paddle_full_paragraph/small_test/')
     parser.add_argument("--output_dir", default='rouge_information/')
+    parser.add_argument("--spm_path", default='data/spm9998_3.model/')
     
     args = parser.parse_args()
     

@@ -784,6 +784,7 @@ class GraphSumModel(object):
                 # IfElse Condition
                 if_cond = layers.equal(step_idx_vector, first_iter)
                 ie = layers.IfElse(if_cond)
+                
 
                 attention_weights_single_decoding = layers.create_tensor(
                     dtype="float64")
@@ -817,7 +818,32 @@ class GraphSumModel(object):
                 # Transform pre_id lod into normal tensor
                 pre_ids = layers.elementwise_add(layers.fill_constant(
                     shape=[1], value=0, dtype="int64"), pre_ids)
+                
+                pre_scores = layers.elementwise_add(layers.fill_constant(
+                    shape=[1], value=0, dtype="float32"), pre_scores)
+                
 
+                with ie.true_block():
+                    local_pre_scores = ie.input(pre_scores)
+                    
+                    # Expand 'local_parent_idx' for first step, becuase only 1 beam is active
+                    local_pre_scores = layers.expand(
+                        local_pre_scores, expand_times=[1, self.beam_size])
+                    
+                    local_pre_scores = layers.reshape(local_pre_scores, shape=[-1,1])
+                    
+                    layers.assign(local_pre_scores, pre_scores)
+                    ie.output(local_pre_scores)
+                
+                with ie.false_block():
+                    local_pre_scores = ie.input(pre_scores)
+                    
+                    # Expand 'local_parent_idx' for first step, becuase only 1 beam is active
+            
+                    layers.assign(local_pre_scores, pre_scores)
+                    ie.output(pre_scores)
+                
+    
                 # Reshape pre-ids based on step
                 with ie.true_block():
                     local_pre_ids = ie.input(pre_ids)

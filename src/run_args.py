@@ -126,6 +126,7 @@ data_g.add_arg("do_lower_case", bool, True,
                "Whether to lower case the input text. Should be True for uncased models and False for cased models.")
 data_g.add_arg("random_seed", int, 0, "Random seed.")
 data_g.add_arg("decode_path", str, "", "path to decode")
+data_g.add_arg("attention_weights_path", str, "", "path to save global attention weights")
 
 transformer_g = ArgumentGroup(
     parser, "transformer args", "transformer options.")

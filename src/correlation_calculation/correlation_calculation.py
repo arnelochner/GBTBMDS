@@ -111,7 +111,7 @@ def aggregate_rouge_paragraph(example, rouge_scores, rouge_meta, fun=np.mean):
     """
     rouge_scores_sentences = slice_rouge(rouge_scores, example, rouge_meta, stack=False)
     aggregated = [fun(rouge_scores_sentences[para], axis=0, keepdims=True) for para in
-                  range(rouge_meta[example]["paragraphs"])]
+                  range(rouge_meta[example]["paragraphs"]) if len(rouge_scores_sentences[para]) > 0]
     return np.vstack(aggregated)
 
 
@@ -167,7 +167,6 @@ def attention_rouge_correlation(rouge_scores, rouge_meta, attention_weights, att
     rouges = -np.ones((num_examples, num_paragraphs * num_generated_sentences, 3))
     attentions = -np.ones((num_examples, num_paragraphs * num_generated_sentences))
     
-    
     for e in range(num_examples):
         r_tmp = np.transpose(aggregate_rouge_paragraph(e, rouge_scores, rouge_meta, fun=aggregate_function),
                              axes=(1, 0, 2))
@@ -212,19 +211,20 @@ def attention_rouge_correlation(rouge_scores, rouge_meta, attention_weights, att
     r1 = r1[index]
     r2 = r2[index]
     rl = rl[index]"""
+   
     
     corr = np.corrcoef([attentions, r1, r2, rl])
     return corr[0,:], r1, r2, rl, attentions
 
 
 if __name__ == "__main__":
-        
+         
     parser = argparse.ArgumentParser(description='Calculate Rouge Score for similarity measurement for source origin analysis')
     
     parser.add_argument("--rouge_information_path", default='rouge_information/')
     parser.add_argument("--transformed_attention_weights_path", default='transformed_attention_weights')
     parser.add_argument("--aggregation_metric", default='Mean')
-    parser.add_argument("--aggregate_function", default='np.mean')
+    parser.add_argument("--aggregate_function", default='np.median')
     parser.add_argument("--result_output", default='correlation_results')
     
     args = parser.parse_args()

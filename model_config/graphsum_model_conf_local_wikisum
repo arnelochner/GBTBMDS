@@ -1,8 +1,8 @@
 task="GraphSum_MDS"
 
-VOCAB_PATH="E:/graphsum/data/spm9998_3.model"
+VOCAB_PATH="./data/spm9998_3.model"
 CONFIG_PATH="./model_config/graphsum_config.json"
-TASK_DATA_PATH="E:/graphsum/data/WikiSum_data_tfidf_40_paddle"
+TASK_DATA_PATH="./data/WikiSum"
 
 #model_based
 lr_scheduler="noam_decay"

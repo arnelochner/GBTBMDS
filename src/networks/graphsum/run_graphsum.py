@@ -575,13 +575,13 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
             else:
                 seq_ids, seq_scores, data_ids, number_of_textual_units, attention_weights, parent_idx, scores_tensor, pre_ids = outputs
                 # seq_ids, seq_scores, data_ids = outputs
-
+                
                 attention_weights = np.array(attention_weights)
                 parent_idx = np.array(parent_idx)
                 scores_tensor = np.array(scores_tensor)
                 pre_ids = np.array(pre_ids)
                 
-                output_batch_folder = "batch_%s" % batch_num
+                output_batch_folder = os.path.join(args.attention_weights_path, "batch_%s" % batch_num)
                 
                 try:
                     os.mkdir(output_batch_folder)
@@ -589,17 +589,12 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                     print ("Creation of the directory %s failed" % output_batch_folder)
                 else:
                     print ("Successfully created the directory %s " % output_batch_folder)
-                    
-                    
-
-                np.save("saved_attention_weights/%s/pretrained_attention_weights" %
-                        output_batch_folder, attention_weights)
-                np.save("saved_attention_weights/%s/parent_idx" %
-                        output_batch_folder, parent_idx)
-                np.save("saved_attention_weights/%s/scores" %
-                        output_batch_folder, scores_tensor)
-                np.save("saved_attention_weights/%s/pre_ids" %
-                        output_batch_folder, pre_ids)
+                
+                                    
+                np.save(os.path.join(output_batch_folder, "pretrained_attention_weights"), attention_weights)
+                np.save(os.path.join(output_batch_folder, "parent_idx"), parent_idx)
+                np.save(os.path.join(output_batch_folder, "scores"), scores_tensor)
+                np.save(os.path.join(output_batch_folder, "pre_ids"), pre_ids)
 
                 seq_ids_list, seq_scores_list = [seq_ids], [
                     seq_scores] if isinstance(
@@ -690,7 +685,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                             score = np.array(seq_scores)[sub_end - 1]
 
                             scores_array[data_idx, j, :
-                                         sub_end-sub_start] = np.array(seq_scores[sub_start:min(sub_end, sub_start+300)])
+                                         sub_end-sub_start] = np.array(seq_scores[sub_start:min(sub_end, sub_start+args.max_out_len)])
 
                             # print(np.array(seq_scores[sub_start:sub_end]))
 
@@ -713,7 +708,7 @@ def evaluate(args, exe, program, pyreader, graph_vars, eval_phase, vocab_size,
                     "token_beam_array": token_beam_array,
                     "beam_length": beam_length_array}
 
-                with open("saved_attention_weights/%s/save_dict" % output_batch_folder, "wb") as handle:
+                with open(os.path.join(output_batch_folder, "save_dict"), "wb") as handle:
                     pickle.dump(save_dict, handle)
 
                 batch_num += 1

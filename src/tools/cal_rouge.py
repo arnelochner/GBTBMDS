@@ -30,7 +30,7 @@ def process(data):
                       encoding="utf-8") as f:
                 f.write(references[i])
 
-        r = pyrouge.Rouge155("./pyrouge/rouge/tools/ROUGE-1.5.5/")
+        r = pyrouge.Rouge155("./pyrogue/tools/ROUGE-1.5.5/")
         r.model_dir = tmp_dir + "/reference/"
         r.system_dir = tmp_dir + "/candidate/"
         r.model_filename_pattern = 'ref.#ID#.txt'
