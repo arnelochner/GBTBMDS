@@ -47,7 +47,7 @@ python -u ./src/run.py \
                --do_test true \
                --do_dec true \
                --verbose true \
-               --batch_size 4000 \
+               --batch_size 120000 \
                --in_tokens true \
                --stream_job ${STREAM_JOB:-""} \
                --init_pretraining_params ${MODEL_PATH:-""} \

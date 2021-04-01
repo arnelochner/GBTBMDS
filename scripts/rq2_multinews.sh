@@ -59,6 +59,7 @@ python -u ./src/run.py \
                --config_path model_config/graphsum_config.json \
                --checkpoints ./models/graphsum_multinews \
                --init_checkpoint ./models/multinews_downloaded_model/step_42976 \
+               --attention_weights_path $attention_weights_path \
                --decode_path ./results/graphsum_multinews \
                --lr_scheduler ${lr_scheduler} \
                --save_steps 10000 \
@@ -75,7 +76,7 @@ python -u ./src/run.py \
                --graph_type "similarity" \
                --len_penalty 0.6 \
                --block_trigram True \
-               --report_rouge False \
+               --report_rouge True \
                --learning_rate ${LR_RATE} \
                --skip_steps 100 \
                --grad_norm 2.0 \
