@@ -96,7 +96,8 @@ transformed_attention_weights_path=transformed_attention_weights/multinews/
 python -u ./src/transformation/transform_attention_weights.py \
                     --input_path $attention_weights_path\
                     --output_path $transformed_attention_weights_path\
-                    --max_beam_length 300
+                    --max_beam_length 300 \
+                    --only_highest_beam True
 
 echo "Transformation of Global Attention Weights is done"
 
@@ -109,7 +110,7 @@ python -u ./src/rouge_calculation/rouge.py \
                     --can_path $can_path\
                     --input_data $input_data\
                     --output_dir $rouge_information_path\
-                    --spm_path ${VOCAB_PATH}
+                    --spm_path ${VOCAB_PATH} > /dev/null 2>&1
 
 echo "Rouge Calculation is done!"
                     

@@ -47,13 +47,13 @@ python -u ./src/run.py \
                --do_test true \
                --do_dec true \
                --verbose true \
-               --batch_size 120000 \
+               --batch_size 4000 \
                --in_tokens true \
                --stream_job ${STREAM_JOB:-""} \
                --init_pretraining_params ${MODEL_PATH:-""} \
                --train_set ${TASK_DATA_PATH}/train \
                --dev_set ${TASK_DATA_PATH}/valid \
-               --test_set ${TASK_DATA_PATH}/small_test \
+               --test_set ${TASK_DATA_PATH}/smaller_test \
                --vocab_path ${VOCAB_PATH} \
                --config_path model_config/graphsum_config.json \
                --checkpoints ./models/graphsum_multinews \
@@ -94,7 +94,8 @@ transformed_attention_weights_path=transformed_attention_weights/wikisum/
 python -u ./src/transformation/transform_attention_weights.py \
                     --input_path $attention_weights_path\
                     --output_path $transformed_attention_weights_path\
-                    --max_beam_length 400
+                    --max_beam_length 400\
+                    --only_highest_beam True
 
 echo "Transformation of Global Attention Weights is done"
 
@@ -107,7 +108,7 @@ python -u ./src/rouge_calculation/rouge.py \
                     --can_path $can_path\
                     --input_data $input_data\
                     --output_dir $rouge_information_path\
-                    --spm_path ${VOCAB_PATH}
+                    --spm_path ${VOCAB_PATH} > /dev/null 2>&1
 
 echo "Rouge Calculation is done!"
                     

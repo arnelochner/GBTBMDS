@@ -11,13 +11,14 @@ def main():
     parser.add_argument("--input_path", default='saved_attention_weights/')
     parser.add_argument("--output_path", default='transformed_attention_weights/')
     parser.add_argument("--max_beam_length", default=300, type=int)
+    parser.add_argument("--only_highest_beam", default=True, type=bool)
     
     args = parser.parse_args()
     
     if not os.path.exists(args.output_path):
         os.mkdir(args.output_path)
     
-    cleaned_weight_matrix, cleaned_score_matrix, result_dict = load_data(args.input_path, args.max_beam_length)
+    cleaned_weight_matrix, cleaned_score_matrix, result_dict = load_data(args.input_path, args.max_beam_length, args.only_highest_beam)
     
     
     sentence_level_aggregation = aggregate_weight_information_for_sentences(cleaned_weight_matrix, result_dict)
@@ -30,9 +31,11 @@ def main():
     
     
     
-def load_data(input_path, max_beam_length):
+def load_data(input_path, max_beam_length, only_highest_beam):
     
     batch_directories = glob("%s/*/" % (input_path))
+    
+    batch_directories.sort(key=os.path.getmtime)
     
     weights_list = []
     scores_list = []
@@ -49,9 +52,19 @@ def load_data(input_path, max_beam_length):
         result_dicts["longest_beam_array"] = np.where(result_dicts["longest_beam_array"] < max_beam_length+1, result_dicts["longest_beam_array"], max_beam_length)
         
         
+        cleaned_weight_matrix, cleaned_score_matrix = transform_attention_weights(weights, parent_idx, scores, result_dicts)
         
- 
-        shape = weights.shape
+        if only_highest_beam:
+                    
+            cleaned_weight_matrix = cleaned_weight_matrix[:,0,:,:,:,:][:,None,:,:,:,:]
+            cleaned_score_matrix = cleaned_score_matrix[:,0,:][:,None,:]
+            
+            result_dicts["scores_array"] = result_dicts["scores_array"][:,0,:][:,None,:]
+            result_dicts["token_beam_array"] = result_dicts["token_beam_array"][:,0,:][:,None,:]
+            result_dicts["beam_length"] = result_dicts["beam_length"][:,0][:,None]
+            
+        
+        shape = cleaned_weight_matrix.shape
     
         tmp_scores_array = np.zeros(shape=[shape[0],shape[1], max_beam_length])
         tmp_scores_array[:,:,:weights.shape[2]] = result_dicts["scores_array"]
@@ -65,7 +78,7 @@ def load_data(input_path, max_beam_length):
         
         tmp_weights = np.zeros(shape=[shape[0],shape[1],max_beam_length,shape[3],shape[4],shape[5]])
         tmp_scores = np.zeros(shape=[shape[0],shape[1],max_beam_length])
-        cleaned_weight_matrix, cleaned_score_matrix = transform_attention_weights(weights, parent_idx, scores, result_dicts)
+        
         tmp_weights[:,:,:weights.shape[2],:,:,:] = cleaned_weight_matrix
         tmp_scores[:,:,:weights.shape[2]] = cleaned_score_matrix
         
