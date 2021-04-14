@@ -35,8 +35,8 @@ def aggregate_weight_information_for_sentences(cleaned_weight_matrix, result_dic
 
     reshaped_matrix = cleaned_weight_matrix.reshape(num_examples*num_beams, -1)
 
-    functions = [{"name": "Mean", "fun": np.mean},
-                 {"name": "Median", "fun": np.median}]
+    functions = [{"name": "Mean", "fun": np.mean}]#,
+                 #{"name": "Median", "fun": np.median}]
 
     res_dict = dict()
 

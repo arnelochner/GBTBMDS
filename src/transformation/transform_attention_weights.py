@@ -1,6 +1,7 @@
 import numpy as np
 import pickle
 import os
+import shutil
 import argparse
 from glob import glob
 from transform_attention_weights_lib import transform_attention_weights
@@ -9,6 +10,7 @@ from aggregation_sentence_information_lib import aggregate_weight_information_fo
 def main():
     parser = argparse.ArgumentParser(description='Transform Global Attention Weights')
     parser.add_argument("--input_path", default='saved_attention_weights/')
+    parser.add_argument("--cleanup_data", default=False, type=bool)
     parser.add_argument("--output_path", default='transformed_attention_weights/')
     parser.add_argument("--max_beam_length", default=300, type=int)
     parser.add_argument("--only_highest_beam", default=True, type=bool)
@@ -18,7 +20,7 @@ def main():
     if not os.path.exists(args.output_path):
         os.mkdir(args.output_path)
     
-    cleaned_weight_matrix, cleaned_score_matrix, result_dict = load_data(args.input_path, args.max_beam_length, args.only_highest_beam)
+    cleaned_weight_matrix, cleaned_score_matrix, result_dict = load_data(args.input_path, args.max_beam_length, args.only_highest_beam, args.cleanup_data)
     
     
     sentence_level_aggregation = aggregate_weight_information_for_sentences(cleaned_weight_matrix, result_dict)
@@ -31,7 +33,7 @@ def main():
     
     
     
-def load_data(input_path, max_beam_length, only_highest_beam):
+def load_data(input_path, max_beam_length, only_highest_beam, cleanup_data):
     
     batch_directories = glob("%s/*/" % (input_path))
     
@@ -47,6 +49,9 @@ def load_data(input_path, max_beam_length, only_highest_beam):
         parent_idx = np.load(os.path.join(batch,"parent_idx.npy"))
         scores = np.load(os.path.join(batch, "scores.npy"))
         result_dicts = pickle.load(open(os.path.join(batch, "save_dict"),"rb"))
+        
+        if cleanup_data:
+            shutil.rmtree(batch, ignore_errors=True)
         
         result_dicts["beam_length"] = np.where(result_dicts["beam_length"] < max_beam_length+1, result_dicts["beam_length"], max_beam_length)
         result_dicts["longest_beam_array"] = np.where(result_dicts["longest_beam_array"] < max_beam_length+1, result_dicts["longest_beam_array"], max_beam_length)

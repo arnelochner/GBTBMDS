@@ -14,23 +14,25 @@ attention_weights_path=saved_attention_weights/multinews
 decode_path=results/graphsum_multinews
 
 if [ ! -d log/multinews  ];then
-  mkdir log/multinews
+  mkdir -p log/multinews
 else
   echo log/multinews exist
 fi
 
 if [ ! -d $decode_path  ];then
-  mkdir $decode_path
+  mkdir -p $decode_path
 else
   echo $decode_path exist
 fi
 
 
 if [ ! -d $attention_weights_path  ];then
-  mkdir $attention_weights_path
+  mkdir -p $attention_weights_path
 else
   echo $attention_weights_path exist
 fi
+
+test_data_dir=25_tmp_test
 
 
 python -u ./src/run.py \
@@ -54,7 +56,7 @@ python -u ./src/run.py \
                --init_pretraining_params ${MODEL_PATH:-""} \
                --train_set ${TASK_DATA_PATH}/train \
                --dev_set ${TASK_DATA_PATH}/valid \
-               --test_set ${TASK_DATA_PATH}/small_test \
+               --test_set ${TASK_DATA_PATH}/$test_data_dir \
                --vocab_path ${VOCAB_PATH} \
                --config_path model_config/graphsum_config.json \
                --checkpoints ./models/graphsum_multinews \
@@ -92,25 +94,42 @@ echo "GraphSum predictions are done"
 
 transformed_attention_weights_path=transformed_attention_weights/multinews/
 
+if [ ! -d $transformed_attention_weights_path  ];then
+  mkdir -p $transformed_attention_weights_path
+else
+  echo $transformed_attention_weights_path exist
+fi
+
+
 
 python -u ./src/transformation/transform_attention_weights.py \
                     --input_path $attention_weights_path\
                     --output_path $transformed_attention_weights_path\
                     --max_beam_length 300 \
-                    --only_highest_beam True
+                    --only_highest_beam True \
+                    --cleanup_data True
 
 echo "Transformation of Global Attention Weights is done"
 
 can_path=${decode_path}/test_final_preds.candidate
-input_data=${TASK_DATA_PATH}/small_test
+input_data=${TASK_DATA_PATH}/$test_data_dir
 rouge_information_path=rouge_information/multinews/
+
+if [ ! -d $rouge_information_path  ];then
+  mkdir -p $rouge_information_path
+else
+  echo $rouge_information_path exist
+fi
+
 
 
 python -u ./src/rouge_calculation/rouge.py \
                     --can_path $can_path\
                     --input_data $input_data\
                     --output_dir $rouge_information_path\
-                    --spm_path ${VOCAB_PATH} > /dev/null 2>&1
+                    --spm_path ${VOCAB_PATH} > /dev/null
+
+
 
 echo "Rouge Calculation is done!"
                     
@@ -118,11 +137,20 @@ aggregation_metric="Mean"
 aggregate_function="np.mean"
 result_output=correlation_results/multinews/
 
+
+if [ ! -d $result_output  ];then
+  mkdir -p $result_output
+else
+  echo $result_output exist
+fi
+
 python -u ./src/correlation_calculation/correlation_calculation.py \
                     --rouge_information_path $rouge_information_path\
                     --transformed_attention_weights_path $transformed_attention_weights_path\
                     --aggregation_metric $aggregation_metric\
                     --aggregate_function $aggregate_function\
                     --result_output $result_output
+                    
+                
                 
 echo "Correlation Calculation is done!"
