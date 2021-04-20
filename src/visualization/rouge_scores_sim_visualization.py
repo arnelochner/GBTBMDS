@@ -120,9 +120,9 @@ def plot_attention_rouge_correlation(corr, r1, r2, rl , attentions, decoding_lay
 
     plt.figure(figsize=(20, 10))
     plt.title(f"Correlation to ROUGE-F(1/2/L) for Decoding-Layer {decoding_layer}: {corr_r1:.2f} / {corr_r2:.2f} / {corr_rl:.2f}")
-    plt.scatter(r1, attentions, label="ROUGE 1")
-    plt.scatter(r2, attentions, label="ROUGE 2")
-    plt.scatter(rl, attentions, label="ROUGE L")
+    plt.scatter(r1, attentions, label="ROUGE 1", alpha=0.1)
+    plt.scatter(r2, attentions, label="ROUGE 2", alpha=0.1)
+    plt.scatter(rl, attentions, label="ROUGE L", alpha=0.1)
     plt.xlabel("ROGUE-Scores")
     plt.ylabel("Global Attention Weights")
     plt.legend()

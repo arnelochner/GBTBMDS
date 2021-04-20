@@ -161,10 +161,10 @@ if __name__ == "__main__":
         
         print(corr)
         corr_matrix[idx,:] = corr
-        r1_list["all"].extend(r1)
-        r2_list["all"].extend(r2)
-        rl_list["all"].extend(rl)                    
-        attention_list["all"].extend(attentions)                            
+        r1_list["all"].append(r1)
+        r2_list["all"].append(r2)
+        rl_list["all"].append(rl)                    
+        attention_list["all"].append(attentions)                            
     
     print(f"Correlation Matrix: {corr_matrix}")
                                     

@@ -32,7 +32,7 @@ else
   echo $attention_weights_path exist
 fi
 
-test_data_dir=25_tmp_test
+test_data_dir=1000_test
 
 
 python -u ./src/run.py \

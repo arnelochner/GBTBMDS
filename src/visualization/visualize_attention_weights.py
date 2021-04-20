@@ -376,11 +376,11 @@ def generate_histo_mat_per_dec_layer(result_dict, aggregated_weight_matrix, deco
     # Columns represent sentences, 1 first sentence, 2 second .....
 
 
-def histo_simp_per_dec_layer(result_dict, aggregated_weight_matrix, normalize=False, size=(40, 10), save=False, decoding_layer_list = range(8)):
+def histo_simp_per_dec_layer(result_dict, aggregated_weight_matrix, normalize=False, size=(10, 30), save=False, decoding_layer_list = range(8)):
 
     decoding_layers = len(decoding_layer_list)
     fig = plt.figure(figsize=size)
-    spec = gridspec.GridSpec(2, decoding_layers//2, wspace=0.3, hspace=0.3)
+    spec = gridspec.GridSpec(decoding_layers,1, wspace=0.3, hspace=0.3)
 
     for idx,decoding_layer in enumerate(decoding_layer_list):
         aux = generate_histo_mat_per_dec_layer(
@@ -394,31 +394,28 @@ def histo_simp_per_dec_layer(result_dict, aggregated_weight_matrix, normalize=Fa
         Z = aux[X, Y]
 
         ax = fig.add_subplot(
-            spec[idx//(decoding_layers//2), idx - (idx//(decoding_layers//2))*(decoding_layers//2)])
+            spec[idx])
 
         im = ax.imshow(Z, extent=(
-            0, aux.shape[0], aux.shape[1], 0), aspect='auto')  # , interpolation='bilinear')
+            0, aux.shape[0], aux.shape[1], 0), aspect='auto',vmin=0,vmax=0.25)  # , interpolation='bilinear')
 
         bar = plt.colorbar(im)
         bar.set_label('Occurrences')
 
-        ax.set_title(r"Decoding layer: $%d$" % (decoding_layer+1))
-        ax.set_ylabel('Paragraph number')
-        ax.set_xlabel('Generated Sentence')
-
-    if normalize:
-        fig.suptitle(
-            "Heatmap indicating which input paragraph position was attended the most for all generated sentence")
-    else:
-        fig.suptitle(
-            "Heatmap indicating which input paragraph position was attended the most for all generated sentence")
+        #ax.set_title(r"Decoding layer: $%d$" % (decoding_layer+1))
+        plt.xlabel("Position of sentence within generated summary", fontsize=18)
+        plt.ylabel("Input Paragraph position", fontsize=18)
+        #ax.set_xlabel('', fontsize=18)
+    
+    
+    
+    #fig.text(0.04,0.5,'Input paragraph position', fontsize=18,ha="right",rotation="vertical")
 
     if save:
         if normalize:
             plt.savefig(
-                'saved_figs/overall_norm_distri_dec_layer.pdf', facecolor="white")
+                'overall_norm_distri_dec_layer.pdf', facecolor="white")
         else:
-            plt.savefig('saved_figs/overall_distri_dec_layer.pdf',
+            plt.savefig('overall_distri_dec_layer.pdf',
                         facecolor="white")
-
     plt.show()
