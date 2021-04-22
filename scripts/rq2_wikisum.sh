@@ -32,7 +32,7 @@ else
   echo $attention_weights_path exist
 fi
 
-test_data_dir=1000_test
+test_data_dir=500_test
 
 python -u ./src/run.py \
                --model_name "graphsum" \
