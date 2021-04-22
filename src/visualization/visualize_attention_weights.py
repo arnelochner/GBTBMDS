@@ -414,7 +414,7 @@ def histo_simp_per_dec_layer(result_dict, aggregated_weight_matrix, normalize=Fa
     if save:
         if normalize:
             plt.savefig(
-                'overall_norm_distri_dec_layer.pdf', facecolor="white")
+                f'overall_norm_distri_dec_layer_{decoding_layer_list}.pdf', facecolor="white")
         else:
             plt.savefig('overall_distri_dec_layer.pdf',
                         facecolor="white")
