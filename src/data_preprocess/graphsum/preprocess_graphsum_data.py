@@ -14,8 +14,34 @@
 
 import argparse
 import time
-import os
 import data_builder_graphsum
+import json
+from glob import glob
+import numpy as np
+import pickle
+import os
+
+def preprocess_wikisum(args):
+    data = []
+    for f_name in glob(os.path.join(args.ranked_wikisum_data_path, "*.json")):
+        data.extend(json.load(open(f_name)))
+
+
+    indices = np.arange(0, len(data))
+    np.random.shuffle(indices)
+
+    if not os.path.exists(args.wikisum_output_path):
+            os.mkdir(args.wikisum_output_path)
+
+    with open(os.path.join(args.wikisum_output_path, "test.json"), "w") as file:
+        data = list(np.array(data)[indices][:args.num_examples])
+
+        if args.add_dummy_number_of_textual_units:
+            for d in data:
+                d["number_of_textual_units"] = [10,10,10]
+
+        json.dump(data, file)
+    
 
 
 def do_format_to_json(args):
@@ -45,6 +71,12 @@ def str2bool(v):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
+    
+    parser.add_argument("-mds_dataset", default="MultiNews", type=str, help="Which dataset should be preprocessed")
+    parser.add_argument("-ranked_wikisum_data_path", default = "WikiSum/test", help="Path to downloaded ranked wikisum dataset")
+    parser.add_argument("-add_dummy_number_of_textual_units", default = "true", help="add dummy information for number of textual units for each input document, required that GraphSum Code works.")
+    parser.add_argument("-wikisum_output_path", default = "WikiSum/preprocessed_test", help="Path for output")
+    
     parser.add_argument("-mode", default='', type=str,
                         help='format_to_json or format_to_paddle')
     parser.add_argument("-json_path", default='json_data/')
@@ -86,16 +118,23 @@ if __name__ == '__main__':
     parser.add_argument('-num_topics', default=20, type=int)
     parser.add_argument("-find_opt_num", type=str2bool,
                         nargs='?', const=True, default=False)
-
     args = parser.parse_args()
+    
+    if args.mds_dataset == "MultiNews":
+        
 
-    if not os.path.exists(args.json_path):
-        os.mkdir(args.json_path)
+        if not os.path.exists(args.json_path):
+            os.mkdir(args.json_path)
 
-    text = "_sentence" if args.sentence_level else "_paragraph"
+        text = "_sentence" if args.sentence_level else "_paragraph"
 
-    if not os.path.exists(args.data_path + text):
-        os.mkdir(args.data_path + text)
+        if not os.path.exists(args.data_path + text):
+            os.mkdir(args.data_path + text)
 
-    do_format_to_json(args)
-    do_format_to_paddle(args)
+
+
+        do_format_to_json(args)
+        do_format_to_paddle(args)
+    else:
+        preprocess_wikisum(args)
+        
