@@ -19,7 +19,9 @@ Namely for RQ1, you can run ./scripts/preprocess_multinews.sh, where you can mod
 
 For RQ2 you can run either ./scripts/preprocess_multinews.sh or ./scripts/preprocess_wikisum.sh.
 
-Afterwards you can start train the GraphSum model on sentence and paragraph level with ./scripts/run_graphsum_local_multinews_sentence.sh and ./scripts/run_graphsum_local_multinews_paragraphs.sh respectively. The obtained rouge scores can then be found in the log folder.
+Afterwards you can start training the GraphSum model on sentence and paragraph level with ./scripts/run_graphsum_local_multinews_sentence.sh and ./scripts/run_graphsum_local_multinews_paragraphs.sh respectively. The obtained rouge scores can then be found in the log folder.
 
 For RQ2 you can start the code pipeline with ./scripts/rq2_multinews.sh and ./scripts/rq2_wikisum.sh, within those bashscripts you can set parameters like output directories and more.
+
+Further documentation can be found in the code or our [technical report](tbd).
 
