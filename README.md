@@ -4,4 +4,4 @@ For RQ2 you can run either ./scripts/preprocess_multinews.sh or ./scripts/prepro
 
 For RQ2 you can start the code pipeline with ./scripts/rq2_multinews.sh and ./scripts/rq2_wikisum.sh, within those bashscripts you can set parameters like output directories and more.
 
-Further documentation can be found in the code or our technical report.
+Further documentation can be found in the code or our [technical report](https://github.com/arnelochner/GBTBMDS/blob/main/technical_report/Project_Data_Science___Text_Summarization___Technical_Report.pdf).
