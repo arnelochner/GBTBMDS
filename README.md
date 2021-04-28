@@ -1,7 +1,4 @@
-Code
-In order to run our scripts, you first need to download the raw MultiNews data from this link and the ranked WikiSum dataset from here.
-
-After obtaining those datasets you can pre-process the datasets for the specific research question.
+In order to run our scripts, you first need to download the raw MultiNews data from [this link](https://github.com/Alex-Fabbri/Multi-News) and the ranked WikiSum dataset from [here](https://github.com/tensorflow/tensor2tensor/tree/5acf4a44cc2cbe91cd788734075376af0f8dd3f4/tensor2tensor/data_generators/wikisum).
 
 For RQ2 you can run either ./scripts/preprocess_multinews.sh or ./scripts/preprocess_wikisum.sh.
 
