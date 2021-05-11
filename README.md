@@ -1,5 +1,6 @@
-Code for  **Analysis of GraphSum’s Attention Weights to Improve the
-Explainability of Multi-Document Summarization**
+Code for  [**Analysis of GraphSum’s Attention Weights to Improve the
+Explainability of Multi-Document Summarization**](https://github.com/arnelochner/GBTBMDS/blob/main/scientific_report/Project_Data_Science___Text_Summarization___Scientific_Report.pdf).
+
 
 Introduction
 ---
