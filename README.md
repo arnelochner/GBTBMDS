@@ -4,7 +4,7 @@ Explainability of Multi-Document Summarization**](https://github.com/arnelochner
 
 Introduction
 ---
-Our research analysis is based on GraphSum [Li et. al](https://arxiv.org/pdf/2005.10043.pdf).
+Our research analysis is based on GraphSum [Li et. al](https://arxiv.org/pdf/2005.10043.pdf) [ACL2020-GraphSum](https://github.com/PaddlePaddle/Research/tree/master/NLP/ACL2020-GraphSum).
 
 The git consists 2 branches namely RQ1 and RQ2.
 
